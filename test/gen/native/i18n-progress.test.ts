@@ -58,7 +58,7 @@ after(() => {
 async function download(): Promise<number[]> {
   const cache = join(tempDir(), 'lang');
   try {
-    const result = await runAsync(app, [], { FORGE_I18N_CACHE_DIR: cache, FORGE_I18N_BASE_URL: base, FORGE_LANG_PREFERENCE: 'pt-BR' });
+    const result = await runAsync(app, [], { FORGE_I18N_CACHE_DIR: cache, FORGE_I18N_BASE_URL: base, FORGE_LOCALE_PREFERENCE: 'pt-BR' });
     const lines = result.stdout.trim().split('\n');
     assert.equal(lines.at(-1), 'end pt-BR', result.stdout + result.stderr);
     return lines.slice(0, -1).map((line) => Number(line.replace('progress ', '')));

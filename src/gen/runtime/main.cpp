@@ -6,26 +6,26 @@
 #ifdef FORGE_I18N
 #include <vector>
 
-// Apps with language packs: --lang <tag> is global (before or after the command) and never reaches the
-// commands; --forge-fetch-lang [tag] installs a pack; the cached pack of the chosen language is loaded first.
+// Apps with language packs: --locale <tag> is global (before or after the command) and never reaches the
+// commands; --forge-fetch-locale [tag] installs a pack; the cached pack of the chosen language is loaded first.
 static int run_cli_with_language(int argc, char** argv) {
   const char* lang = nullptr;
   std::vector<char*> args{argv[0]};
   for (int i = 1; i < argc; ++i) {
-    if (std::strcmp(argv[i], "--lang") == 0) {
+    if (std::strcmp(argv[i], "--locale") == 0) {
       if (i + 1 >= argc) {
-        std::fputs("--lang needs a language tag (for example --lang pt-BR)\n", stderr);
+        std::fputs("--locale needs a language tag (for example --locale pt-BR)\n", stderr);
         return 2;
       }
       lang = argv[++i];
-    } else if (std::strncmp(argv[i], "--lang=", 7) == 0) {
-      lang = argv[i] + 7;
+    } else if (std::strncmp(argv[i], "--locale=", 9) == 0) {
+      lang = argv[i] + 9;
     } else {
       args.push_back(argv[i]);
     }
   }
   for (std::size_t i = 1; i < args.size(); ++i) {
-    if (std::strcmp(args[i], "--forge-fetch-lang") == 0) {
+    if (std::strcmp(args[i], "--forge-fetch-locale") == 0) {
       const bool has_tag = i + 1 < args.size() && args[i + 1][0] != '-';
       return forge_app::run_fetch_lang(has_tag ? args[i + 1] : lang);
     }

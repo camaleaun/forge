@@ -48,8 +48,8 @@ describe('given the portable language loader and a fake platform adapter', { ski
     const out = drive([...setup(), 'plant ' + ptName() + ' ' + packFile, 'set language pt-BR', 'start', 'active', 'render Greet', 'urls']);
     assert.deepEqual(out, ['pt-BR', 'Cumprimentar', '']);
   });
-  it('when FORGE_LANG_PREFERENCE is set, then it wins over the stored language', () => {
-    const out = drive([...setup(), 'plant ' + ptName() + ' ' + packFile, 'set language en', 'start', 'active'], { FORGE_LANG_PREFERENCE: 'pt-BR' });
+  it('when FORGE_LOCALE_PREFERENCE is set, then it wins over the stored language', () => {
+    const out = drive([...setup(), 'plant ' + ptName() + ' ' + packFile, 'set language en', 'start', 'active'], { FORGE_LOCALE_PREFERENCE: 'pt-BR' });
     assert.deepEqual(out, ['pt-BR']);
   });
   it('when the system language is pt_BR.UTF-8, then the pt-BR pack is chosen', () => {
@@ -99,8 +99,8 @@ describe('given the portable language loader and a fake platform adapter', { ski
     const out = drive([...setup(), 'plantjunk ' + ptName(), 'cli pt-BR', 'active', 'cache']);
     assert.deepEqual(out, ['en', '']);
   });
-  it('when the CLI language is read, then --lang beats FORGE_LANG, and the cache is never downloaded into', () => {
-    const out = drive([...setup(), 'plant ' + ptName() + ' ' + packFile, 'cli pt-BR', 'active', 'urls'], { FORGE_LANG: 'en' });
+  it('when the CLI language is read, then --locale beats FORGE_LOCALE, and the cache is never downloaded into', () => {
+    const out = drive([...setup(), 'plant ' + ptName() + ' ' + packFile, 'cli pt-BR', 'active', 'urls'], { FORGE_LOCALE: 'en' });
     assert.deepEqual(out, ['pt-BR', '']);
   });
   it('when a download redirects to plain http on another host, then the redirect is refused', () => {
@@ -188,7 +188,7 @@ describe('given the portable language loader built without the HTTP library (dow
   const run = (script: string[]) =>
     spawnSync(plain, [], { input: script.join('\n') + '\n', encoding: 'utf8', env: { PATH: process.env.PATH ?? '' }, timeout: 20000 });
 
-  it('when --forge-fetch-lang needs a download, then it fails with a clear message and nothing is fetched', () => {
+  it('when --forge-fetch-locale needs a download, then it fails with a clear message and nothing is fetched', () => {
     const result = run([`cachebase ${join(plainDir, 'cache')}`, `packfile ${join(plainDir, 'pt.lang')}`, 'fetch pt-BR', 'urls']);
     assert.match(result.stderr, /downloads are disabled in this build/);
     assert.deepEqual(result.stdout.trim().split('\n'), ['exit 1']);

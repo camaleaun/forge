@@ -1,4 +1,4 @@
-// A UI stub that downloads the language pack chosen by FORGE_LANG_PREFERENCE and prints what a progress bar
+// A UI stub that downloads the language pack chosen by FORGE_LOCALE_PREFERENCE and prints what a progress bar
 // bound to the download would show: one line per refresh ("progress <percent>"), then "end <active language>".
 // It runs the platform's main loop, because the progress arrives on the main thread.
 #include <cstdio>

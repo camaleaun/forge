@@ -50,8 +50,8 @@ describe('given a generated i18n hello project on Linux', { skip: !canBuild && S
     rmSync(cache, { recursive: true, force: true });
   });
 
-  it('when run with --lang pt-BR --greet and a cached pack, then it prints Olá, mundo!', () => {
-    const result = spawnSync(binary, ['--lang', 'pt-BR', '--greet'], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', FORGE_I18N_CACHE_DIR: cache } });
+  it('when run with --locale pt-BR --greet and a cached pack, then it prints Olá, mundo!', () => {
+    const result = spawnSync(binary, ['--locale', 'pt-BR', '--greet'], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', FORGE_I18N_CACHE_DIR: cache } });
     assert.equal(result.stdout, 'Olá, mundo!\n');
     assert.equal(result.status, 0);
   });
@@ -90,8 +90,8 @@ describe('given a generated i18n hello on Linux with downloads off', { skip: !ca
     console.log(`# hello Linux i18n binary size, downloads off: ${statSync(off).size} bytes`);
     assert.doesNotMatch(spawnSync('ldd', [off], { encoding: 'utf8' }).stdout, /libsoup/);
   });
-  it('when --forge-fetch-lang is run, then it says downloads are disabled in this build', () => {
-    const result = spawnSync(join(offDir, 'build/hello'), ['--forge-fetch-lang', 'pt-BR'], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', FORGE_I18N_CACHE_DIR: join(offDir, 'empty') } });
+  it('when --forge-fetch-locale is run, then it says downloads are disabled in this build', () => {
+    const result = spawnSync(join(offDir, 'build/hello'), ['--forge-fetch-locale', 'pt-BR'], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', FORGE_I18N_CACHE_DIR: join(offDir, 'empty') } });
     assert.match(result.stderr, /downloads are disabled in this build/);
     assert.equal(result.status, 1);
   });

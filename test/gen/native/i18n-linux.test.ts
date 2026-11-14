@@ -45,7 +45,7 @@ const settings = (text: string) => {
 
 describe('given the Linux adapter', { skip: !(canRun && onLinux) && 'needs Linux, g++ and pkg-config glib-2.0 gio-2.0 libsoup-3.0' }, () => {
   it('when a pack is fetched, then it lands in $XDG_CACHE_HOME/<app id>/lang', async () => {
-    const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());
+    const result = await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env());
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(readdirSync(join(home, 'cache', APP_ID, 'lang')), [ptName()]);
     assert.deepEqual(requests, [`/${PT_FILE}`]);
@@ -57,9 +57,9 @@ describe('given the Linux adapter', { skip: !(canRun && onLinux) && 'needs Linux
     const result = await runAsync(app, ['--greet'], env());
     assert.equal(result.stdout, 'Olá, mundo!\n');
   });
-  it('when settings.ini says download=false, then --forge-fetch-lang is refused without a request', async () => {
+  it('when settings.ini says download=false, then --forge-fetch-locale is refused without a request', async () => {
     settings('[forge]\ndownload=false\n');
-    const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());
+    const result = await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env());
     assert.equal(result.status, 1);
     assert.match(result.stderr, /disabled/);
     assert.deepEqual(requests, []);

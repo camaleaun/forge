@@ -57,7 +57,7 @@ std::string render(const Text& text);
 
 // GUI: called (on the main thread) whenever the active language or a pack's availability changes.
 void set_refresh_hook(void (*hook)());
-// Picks the language (FORGE_LANG_PREFERENCE, then the ForgeLanguage default, then the system) and applies
+// Picks the language (FORGE_LOCALE_PREFERENCE, then the ForgeLanguage default, then the system) and applies
 // a cached pack at once; a missing pack is downloaded in the background (one attempt per launch).
 void start_gui_language();
 // value: "" = Auto (system language), "en" = English, or a pack tag.
@@ -70,9 +70,9 @@ bool download_active();                           // a language pack download is
 // Calls the refresh hook (main thread) whenever it changes, and when a download starts or ends.
 double download_progress(const std::string& tag);
 
-// CLI: cache only. `lang_flag` is the value of --lang, or nullptr.
+// CLI: cache only. `lang_flag` is the value of --locale, or nullptr.
 void load_cli_language(const char* lang_flag);
-// --forge-fetch-lang [tag]: synchronous download into the cache; returns the exit code.
+// --forge-fetch-locale [tag]: synchronous download into the cache; returns the exit code.
 int run_fetch_lang(const char* tag);
 
 }  // namespace forge_app

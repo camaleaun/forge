@@ -110,10 +110,10 @@ std::string pick(const std::vector<std::string>& preferred) {
   return forge_i18n::pick_locale(preferred, available);
 }
 
-// GUI: FORGE_LANG_PREFERENCE (tests) > the stored choice > the system languages.
+// GUI: FORGE_LOCALE_PREFERENCE (tests) > the stored choice > the system languages.
 std::string pick_gui_tag(bool use_stored) {
   std::vector<std::string> preferred;
-  std::string forced = env_string("FORGE_LANG_PREFERENCE");
+  std::string forced = env_string("FORGE_LOCALE_PREFERENCE");
   if (!forced.empty()) {
     for (std::size_t start = 0; start <= forced.size();) {
       std::size_t end = forced.find(',', start);
@@ -129,9 +129,9 @@ std::string pick_gui_tag(bool use_stored) {
   return pick(preferred);
 }
 
-// CLI: --lang > FORGE_LANG > LC_ALL > LC_MESSAGES > LANG > the stored choice > the system languages.
+// CLI: --locale > FORGE_LOCALE > LC_ALL > LC_MESSAGES > LANG > the stored choice > the system languages.
 std::string pick_cli_tag(const char* flag) {
-  const std::string candidates[] = {flag ? flag : "", env_string("FORGE_LANG"), env_string("LC_ALL"),
+  const std::string candidates[] = {flag ? flag : "", env_string("FORGE_LOCALE"), env_string("LC_ALL"),
                                     env_string("LC_MESSAGES"), env_string("LANG")};
   for (const std::string& candidate : candidates) {
     std::string tag = forge_i18n::normalize_tag(candidate);

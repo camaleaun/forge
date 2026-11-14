@@ -51,8 +51,8 @@ describe('given an i18n hello built with cmake', { skip: !canBuild && 'needs mac
     const result = spawnSync(withI18n, ['--greet'], { encoding: 'utf8', env: { LANG: 'en_US.UTF-8', HOME: process.env.HOME ?? '' } });
     assert.equal(result.stdout, 'Hello, world!\n');
   });
-  it('when run with --lang pt-BR and a cached pack, then it prints the Portuguese greeting', () => {
-    const result = spawnSync(withI18n, ['--lang', 'pt-BR', '--greet'], { encoding: 'utf8', env: { FORGE_I18N_CACHE_DIR: cacheDir, HOME: process.env.HOME ?? '' } });
+  it('when run with --locale pt-BR and a cached pack, then it prints the Portuguese greeting', () => {
+    const result = spawnSync(withI18n, ['--locale', 'pt-BR', '--greet'], { encoding: 'utf8', env: { FORGE_I18N_CACHE_DIR: cacheDir, HOME: process.env.HOME ?? '' } });
     assert.equal(result.stdout, 'Olá, mundo!\n');
     assert.equal(result.status, 0);
   });

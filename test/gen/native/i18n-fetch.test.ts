@@ -48,8 +48,8 @@ const env = (extra: Record<string, string> = {}) => ({ FORGE_I18N_CACHE_DIR: cac
 const cached = () => (existsSync(cache) ? readdirSync(cache) : []);
 
 describe('given a fake server that serves the pt-BR pack', { skip: !canRun && skipReason }, () => {
-  it('when --forge-fetch-lang pt-BR runs, then it prints the confirmation, exits 0 and writes the cache file', async () => {
-    const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());
+  it('when --forge-fetch-locale pt-BR runs, then it prints the confirmation, exits 0 and writes the cache file', async () => {
+    const result = await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env());
     assert.equal(result.stdout, 'Language pack pt-BR installed\n');
     assert.equal(result.status, 0);
     assert.deepEqual(cached(), [ptName()]);
@@ -57,23 +57,23 @@ describe('given a fake server that serves the pt-BR pack', { skip: !canRun && sk
     assert.deepEqual(requests, [`/${PT_FILE}`]);
   });
   it('when the pack was fetched, then --greet in pt-BR uses it without the network', async () => {
-    await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());
+    await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env());
     requests = [];
     const result = run(app, ['--greet'], { FORGE_I18N_CACHE_DIR: cache, LANG: 'pt_BR.UTF-8', FORGE_I18N_BASE_URL: 'http://127.0.0.1:9/' });
     assert.equal(result.stdout, 'Olá, mundo!\n');
     assert.deepEqual(requests, []);
   });
   it('when no tag is given, then the pack of the current locale is fetched', async () => {
-    const result = await runAsync(app, ['--forge-fetch-lang'], env({ FORGE_LANG: 'pt_BR' }));
+    const result = await runAsync(app, ['--forge-fetch-locale'], env({ FORGE_LOCALE: 'pt_BR' }));
     assert.equal(result.stdout, 'Language pack pt-BR installed\n');
     assert.deepEqual(cached(), [ptName()]);
   });
-  it('when --lang gives the tag, then it is used as the default of --forge-fetch-lang', async () => {
-    const result = await runAsync(app, ['--lang', 'pt_BR', '--forge-fetch-lang'], env());
+  it('when --locale gives the tag, then it is used as the default of --forge-fetch-locale', async () => {
+    const result = await runAsync(app, ['--locale', 'pt_BR', '--forge-fetch-locale'], env());
     assert.equal(result.stdout, 'Language pack pt-BR installed\n');
   });
   it('when the locale is English and no tag is given, then nothing is downloaded and the exit code is 0', async () => {
-    const result = await runAsync(app, ['--forge-fetch-lang'], env());
+    const result = await runAsync(app, ['--forge-fetch-locale'], env());
     assert.equal(result.status, 0);
     assert.match(result.stdout, /English is built in/);
     assert.deepEqual(requests, []);
@@ -81,7 +81,7 @@ describe('given a fake server that serves the pt-BR pack', { skip: !canRun && sk
   it('when the pack is already cached and valid, then it is reported as installed without a request', async () => {
     mkdirSync(cache, { recursive: true });
     writeFileSync(join(cache, ptName()), PT_PACK);
-    const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());
+    const result = await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env());
     assert.equal(result.status, 0);
     assert.deepEqual(requests, []);
   });
@@ -89,11 +89,11 @@ describe('given a fake server that serves the pt-BR pack', { skip: !canRun && sk
     mkdirSync(cache, { recursive: true });
     writeFileSync(join(cache, 'pt-BR-aaaaaaaaaaaa.lang'), 'old');
     writeFileSync(join(cache, 'fr-bbbbbbbbbbbb.lang'), 'other language');
-    await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());
+    await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env());
     assert.deepEqual(cached().sort(), ['fr-bbbbbbbbbbbb.lang', ptName()]);
   });
   it('when the tag has no pack (xx), then it fails with a clear message and no request', async () => {
-    const result = await runAsync(app, ['--forge-fetch-lang', 'xx'], env());
+    const result = await runAsync(app, ['--forge-fetch-locale', 'xx'], env());
     assert.equal(result.status, 1);
     assert.match(result.stderr, /no language pack for "xx"/);
     assert.deepEqual(requests, []);
@@ -107,7 +107,7 @@ describe('given a fake server that serves the pt-BR pack', { skip: !canRun && sk
         res.end(PT_PACK);
       }
     };
-    const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());
+    const result = await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env());
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(requests, [`/${PT_FILE}`, '/moved.lang']);
     assert.deepEqual(cached(), [ptName()]);
@@ -117,14 +117,14 @@ describe('given a fake server that serves the pt-BR pack', { skip: !canRun && sk
 describe('given a server that must not be trusted', { skip: !canRun && skipReason }, () => {
   it('when the content has the right size but another sha256, then nothing is written and the exit code is non-zero', async () => {
     handler = (_req, res) => res.end(Buffer.from(PT_PACK).fill('X', 0, 1));
-    const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());
+    const result = await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env());
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /checksum/);
     assert.deepEqual(cached(), []);
   });
   it('when the content has another size, then it is rejected', async () => {
     handler = (_req, res) => res.end(PT_PACK + '# extra\n');
-    const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());
+    const result = await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env());
     assert.equal(result.status, 1);
     assert.match(result.stderr, /unexpected size/);
     assert.deepEqual(cached(), []);
@@ -134,7 +134,7 @@ describe('given a server that must not be trusted', { skip: !canRun && skipReaso
       res.writeHead(404);
       res.end('not found');
     };
-    const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());
+    const result = await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env());
     assert.equal(result.status, 1);
     assert.match(result.stderr, /HTTP 404/);
     assert.deepEqual(cached(), []);
@@ -144,7 +144,7 @@ describe('given a server that must not be trusted', { skip: !canRun && skipReaso
       res.writeHead(302, { Location: 'http://example.com/pack.lang' });
       res.end();
     };
-    const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());
+    const result = await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env());
     assert.equal(result.status, 1);
     assert.match(result.stderr, /HTTP 302/);
     assert.deepEqual(cached(), []);
@@ -152,26 +152,26 @@ describe('given a server that must not be trusted', { skip: !canRun && skipReaso
   it('when the server never answers, then the timeout (FORGE_I18N_TIMEOUT_MS) ends the attempt with a failure', async () => {
     handler = () => {};
     const started = Date.now();
-    const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env({ FORGE_I18N_TIMEOUT_MS: '400' }));
+    const result = await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env({ FORGE_I18N_TIMEOUT_MS: '400' }));
     assert.equal(result.status, 1);
     assert.match(result.stderr, /time/i);
     assert.ok(Date.now() - started < 10000, 'it did not wait for the default 10 s');
     assert.deepEqual(cached(), []);
   });
   it('when the base URL is plain http on a non-loopback host, then the download is refused before any connection', async () => {
-    const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env({ FORGE_I18N_BASE_URL: 'http://example.com/' }));
+    const result = await runAsync(app, ['--forge-fetch-locale', 'pt-BR'], env({ FORGE_I18N_BASE_URL: 'http://example.com/' }));
     assert.equal(result.status, 1);
     assert.match(result.stderr, /refusing to download/);
     assert.deepEqual(cached(), []);
   });
-  it('when the app was built with downloads disabled, then --forge-fetch-lang fails without a request', async () => {
-    const result = await runAsync(offApp, ['--forge-fetch-lang', 'pt-BR'], env());
+  it('when the app was built with downloads disabled, then --forge-fetch-locale fails without a request', async () => {
+    const result = await runAsync(offApp, ['--forge-fetch-locale', 'pt-BR'], env());
     assert.equal(result.status, 1);
     assert.match(result.stderr, /disabled/);
     assert.deepEqual(requests, []);
   });
   it('when --greet runs in pt-BR with an empty cache, then there is no automatic download in CLI mode', async () => {
-    const result = await runAsync(app, ['--greet'], env({ FORGE_LANG: 'pt-BR' }));
+    const result = await runAsync(app, ['--greet'], env({ FORGE_LOCALE: 'pt-BR' }));
     assert.equal(result.stdout, 'Hello, world!\n');
     assert.deepEqual(requests, []);
   });

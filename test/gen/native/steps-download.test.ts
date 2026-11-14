@@ -67,7 +67,7 @@ after(() => {
 // The window opens in pt-BR (so the pack downloads at once); the driver reports the buttons now and after waiting.
 function reports(wait = ['wait', 'wait', 'wait']): Promise<string[]> {
   const cache = mkdtempSync(join(tmpdir(), 'forge-steps-cache-'));
-  const env = { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', LANG: 'en_US.UTF-8', GDK_BACKEND: 'x11', FORGE_I18N_CACHE_DIR: join(cache, 'lang'), FORGE_I18N_BASE_URL: base, FORGE_LANG_PREFERENCE: 'pt-BR' };
+  const env = { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', LANG: 'en_US.UTF-8', GDK_BACKEND: 'x11', FORGE_I18N_CACHE_DIR: join(cache, 'lang'), FORGE_I18N_BASE_URL: base, FORGE_LOCALE_PREFERENCE: 'pt-BR' };
   const command = onLinux ? ['xvfb-run', ['-a', '-s', '-screen 0 1280x800x24', binary, ...wait]] : [binary, wait];
   const child = spawn(command[0] as string, command[1] as string[], { env });
   let stdout = '';
