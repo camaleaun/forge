@@ -61,11 +61,11 @@ describe('given the portable language loader and a fake platform adapter', { ski
   });
   it('when the pack is missing, then it is downloaded in the background, applied by the refresh and stored', () => {
     const out = drive([...setup(), 'hook', 'syslang en', 'choose pt-BR', 'active', 'pump', 'active', 'stored', 'cache', 'render Greet']);
-    assert.deepEqual(out, ['en', 'hook', 'pt-BR', 'pt-BR', ptName(), 'Cumprimentar']);
+    assert.deepEqual(out, ['hook', 'en', 'hook', 'hook', 'hook', 'pt-BR', 'pt-BR', ptName(), 'Cumprimentar']);
   });
   it('when the download fails, then the language is marked offline and nothing is stored', () => {
     const out = drive([...setup(), 'hook', 'http fail', 'choose pt-BR', 'pump', 'offline pt-BR', 'active', 'stored']);
-    assert.deepEqual(out, ['hook', 'yes', 'en', '<auto>']);
+    assert.deepEqual(out, ['hook', 'hook', 'yes', 'en', '<auto>']);
   });
   it('when an offline language is chosen again, then no new download is attempted', () => {
     const out = drive([...setup(), 'http fail', 'choose pt-BR', 'pump', 'choose pt-BR', 'jobs']);
@@ -135,5 +135,38 @@ describe('given the portable language loader and a fake platform adapter', { ski
   });
   it('when the sha256 helper agrees with the pinned hash, then the cache name uses its first 12 hex digits', () => {
     assert.equal(ptName(), `pt-BR-${sha256(PT_PACK).slice(0, 12)}.lang`);
+  });
+
+  describe('and a language download in flight', () => {
+    const started = () => [...setup(), 'hook', 'syslang en', 'choose pt-BR'];
+    it('when the download starts, then it is active at 0% and the hook runs so that a bar can show up', () => {
+      assert.deepEqual(drive([...started(), 'active-download', 'progress pt-BR']), ['hook', 'yes', '0']);
+    });
+    it('when nothing is downloading, then it is not active and the progress is -1', () => {
+      assert.deepEqual(drive([...setup(), 'active-download', 'progress pt-BR']), ['no', '-1']);
+    });
+    it('when the worker reports 0%, 50% and 100%, then 0% is already shown and each later post updates the main thread and runs the hook', () => {
+      const out = drive([...started(), 'work', 'posts', 'progress pt-BR', 'post', 'progress pt-BR', 'post', 'progress pt-BR']);
+      assert.deepEqual(out, ['hook', '2', '0', 'hook', '50', 'hook', '100']);
+    });
+    it('when the download succeeds, then the progress is gone, the bar is no longer needed and the pack applies', () => {
+      const out = drive([...started(), 'work', 'post', 'post', 'done', 'active-download', 'progress pt-BR', 'active']);
+      assert.deepEqual(out, ['hook', 'hook', 'hook', 'hook', 'no', '-1', 'pt-BR']);
+    });
+    it('when the connection breaks at 50%, then the progress is gone and the language is offline', () => {
+      const out = drive([...started(), 'http failhalf', 'work', 'posts', 'post', 'progress pt-BR', 'done', 'active-download', 'progress pt-BR', 'offline pt-BR']);
+      assert.deepEqual(out, ['hook', '1', 'hook', '50', 'hook', 'no', '-1', 'yes']);
+    });
+    it('when the server sends no Content-Length, then the total is the pack size known by the binary', () => {
+      const out = drive([...started(), 'http nolength', 'work', 'progress pt-BR', 'post', 'progress pt-BR', 'post', 'progress pt-BR']);
+      assert.deepEqual(out, ['hook', '0', 'hook', '50', 'hook', '100']);
+    });
+    it('when a progress post arrives after the download ended, then it is ignored (no hook, no progress)', () => {
+      const out = drive([...started(), 'work', 'done', 'post', 'post', 'progress pt-BR']);
+      assert.deepEqual(out, ['hook', 'hook', '-1']);
+    });
+    it('when progress is asked with an empty tag, then it is the download in flight', () => {
+      assert.deepEqual(drive([...started(), 'work', 'post', 'progress']), ['hook', 'hook', '50']);
+    });
   });
 });

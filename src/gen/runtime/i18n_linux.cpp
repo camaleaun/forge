@@ -59,7 +59,7 @@ std::vector<std::string> system_languages() {
 
 std::string cache_base() { return std::string(g_get_user_cache_dir()) + "/" + APP_ID + "/lang"; }
 
-bool http_get(const std::string& url_text, std::size_t max_bytes, int request_ms, int resource_ms, UrlAllowed allowed, Http& out) {
+bool http_get(const std::string& url_text, std::size_t max_bytes, int request_ms, int resource_ms, UrlAllowed allowed, Http& out, Progress progress, void* context) {
   SoupSession* session = soup_session_new();
   soup_session_set_timeout(session, static_cast<guint>((request_ms + 999) / 1000));
   soup_session_set_idle_timeout(session, static_cast<guint>((request_ms + 999) / 1000));
@@ -110,6 +110,10 @@ bool http_get(const std::string& url_text, std::size_t max_bytes, int request_ms
     }
     out.status = status;
     out.body.clear();
+    SoupMessageHeaders* headers = soup_message_get_response_headers(message);
+    const std::size_t total =
+        soup_message_headers_get_encoding(headers) == SOUP_ENCODING_CONTENT_LENGTH ? static_cast<std::size_t>(soup_message_headers_get_content_length(headers)) : 0;
+    if (progress) progress(context, 0, total);
     char buffer[4096];
     bool complete = true;
     while (true) {
@@ -122,6 +126,7 @@ bool http_get(const std::string& url_text, std::size_t max_bytes, int request_ms
       }
       if (n == 0) break;
       out.body.append(buffer, static_cast<std::size_t>(n));
+      if (progress) progress(context, out.body.size(), total);
       if (out.body.size() > max_bytes) {
         out.error = "the downloaded pack has an unexpected size";
         complete = false;
@@ -166,6 +171,17 @@ gpointer thread_main(gpointer data) {
 }
 
 }  // namespace
+
+void post_to_main(void (*fn)(void*), void* context) {
+  g_idle_add(
+      [](gpointer data) -> gboolean {
+        Task* task = static_cast<Task*>(data);
+        task->work(task->context);
+        delete task;
+        return G_SOURCE_REMOVE;
+      },
+      new Task{fn, nullptr, context});
+}
 
 void run_in_background(void (*work)(void*), void (*done)(void*), void* context) {
   GThread* thread = g_thread_new("forge-i18n", thread_main, new Task{work, done, context});

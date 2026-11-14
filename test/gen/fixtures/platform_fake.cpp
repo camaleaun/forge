@@ -19,7 +19,7 @@ namespace {
 std::map<std::string, std::string> g_settings;
 std::vector<std::string> g_system_languages;
 std::string g_cache_base = "/nonexistent-forge-cache";
-std::string g_http_mode = "ok";  // ok | status404 | fail | redirect-http | big
+std::string g_http_mode = "ok";  // ok | nolength | failhalf | status404 | fail | redirect-http | big
 std::string g_pack_path;
 std::vector<std::string> g_urls;
 std::vector<std::string> g_hops;
@@ -29,6 +29,8 @@ struct Job {
   void* context;
 };
 std::vector<Job> g_jobs;
+std::vector<Job> g_worked;  // jobs whose work ran but whose `done` has not
+std::vector<Job> g_posts;   // what the worker posted to the main thread (done is unused)
 
 std::string slurp(const std::string& path) {
   std::ifstream in(path, std::ios::binary);
@@ -54,7 +56,7 @@ void write_setting(const char* key, const std::string& value) {
 std::vector<std::string> system_languages() { return g_system_languages; }
 std::string cache_base() { return g_cache_base; }
 
-bool http_get(const std::string& url, std::size_t max_bytes, int, int, UrlAllowed allowed, Http& out) {
+bool http_get(const std::string& url, std::size_t max_bytes, int, int, UrlAllowed allowed, Http& out, Progress progress, void* context) {
   g_urls.push_back(url);
   if (g_http_mode == "fail") {
     out.error = "connection refused";
@@ -74,12 +76,24 @@ bool http_get(const std::string& url, std::size_t max_bytes, int, int, UrlAllowe
   }
   out.status = 200;
   out.body = slurp(g_pack_path);
+  if (progress) {  // 0, 50% and 100% of the body; "nolength" reports no total, like a missing Content-Length
+    const std::size_t total = g_http_mode == "nolength" ? 0 : out.body.size();
+    progress(context, 0, total);
+    progress(context, out.body.size() / 2, total);
+    if (g_http_mode == "failhalf") {
+      out.error = "connection reset";
+      return false;
+    }
+    progress(context, out.body.size(), total);
+  }
   if (out.body.size() > max_bytes) {
     out.error = "the downloaded pack has an unexpected size";
     return false;
   }
   return true;
 }
+
+void post_to_main(void (*fn)(void*), void* context) { g_posts.push_back({fn, nullptr, context}); }
 
 // The "main thread" is the driver: jobs run when it says `pump`.
 void run_in_background(void (*work)(void*), void (*done)(void*), void* context) { g_jobs.push_back({work, done, context}); }
@@ -159,8 +173,32 @@ int main() {
         Job job = g_jobs.front();
         g_jobs.erase(g_jobs.begin());
         job.work(job.context);
+        while (!g_posts.empty()) {
+          Job post = g_posts.front();
+          g_posts.erase(g_posts.begin());
+          post.work(post.context);
+        }
         job.done(job.context);
       }
+    } else if (command == "work") {  // the worker thread runs: its progress posts wait for `post`
+      g_worked.push_back(g_jobs.front());
+      g_jobs.erase(g_jobs.begin());
+      g_worked.back().work(g_worked.back().context);
+    } else if (command == "post") {  // the main thread handles the oldest post
+      Job post = g_posts.front();
+      g_posts.erase(g_posts.begin());
+      post.work(post.context);
+    } else if (command == "done") {  // the worker finished: `done` runs on the main thread
+      Job job = g_worked.front();
+      g_worked.erase(g_worked.begin());
+      job.done(job.context);
+    } else if (command == "posts") {
+      std::printf("%zu\n", g_posts.size());
+    } else if (command == "active-download") {
+      std::puts(download_active() ? "yes" : "no");
+    } else if (command == "progress") {  // progress <tag>: percent rounded, or -1
+      const double fraction = download_progress(rest);
+      std::printf("%d\n", fraction < 0 ? -1 : static_cast<int>(fraction * 100 + 0.5));
     } else if (command == "active") {
       std::puts(active_language().c_str());
     } else if (command == "stored") {

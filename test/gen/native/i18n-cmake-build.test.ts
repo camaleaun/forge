@@ -11,7 +11,9 @@ import { helloI18nIr, helloIr } from '../helpers.ts';
 import { optionsFor, PT_PACK, ptName } from './i18n-app.ts';
 
 const canBuild = process.platform === 'darwin' && spawnSync('cmake', ['--version']).status === 0;
-const MAX_I18N_BYTES = 120 * 1024;
+// The i18n hello (with the language-download bar) is about 128 KB: arm64 macOS pads segments to 16 KB pages, so a few
+// hundred bytes of code can move the file by a whole page.
+const MAX_I18N_BYTES = 136 * 1024;
 const dirs: string[] = [];
 
 function build(ir: Ir, i18n: I18nGenOptions | undefined): string {
@@ -52,7 +54,7 @@ describe('given an i18n hello built with cmake', { skip: !canBuild && 'needs mac
     assert.equal(result.stdout, 'Olá, mundo!\n');
     assert.equal(result.status, 0);
   });
-  it('when the sizes are measured, then the i18n hello is under 120 KB (both are printed)', () => {
+  it('when the sizes are measured, then the i18n hello is under 136 KB (both are printed)', () => {
     const [a, b] = [statSync(withI18n).size, statSync(without).size];
     console.log(`# hello with i18n (menu off, dropdown): ${a} bytes; without i18n: ${b} bytes; delta ${a - b} bytes`);
     assert.ok(a < MAX_I18N_BYTES, `${a} bytes is not under ${MAX_I18N_BYTES}`);

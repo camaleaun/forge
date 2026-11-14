@@ -69,7 +69,7 @@ const compiler = onLinux ? 'g++' : 'clang++';
 const pkgConfig = (mode: string): string[] => spawnSync('pkg-config', [mode, ...LINUX_PACKAGES], { encoding: 'utf8' }).stdout.split(/\s+/).filter(Boolean);
 
 // Generates the project and links it with main.cpp, the i18n runtime and a UI stub (clang++, no cmake).
-export function buildApp(ir: Ir, options: I18nGenOptions): App {
+export function buildApp(ir: Ir, options: I18nGenOptions, uiStub = 'ui_stub.cpp'): App {
   const dir = mkdtempSync(join(tmpdir(), 'forge-i18n-app-'));
   writeProjectFiles(generateProject(ir, 'macos', { i18n: options }), dir);
   const flags = ['-std=c++20', '-Wall', '-Wextra', '-Werror', '-fno-exceptions', '-fno-rtti', '-I', dir, '-I', RUNTIME_DIR];
@@ -81,7 +81,7 @@ export function buildApp(ir: Ir, options: I18nGenOptions): App {
     [join(RUNTIME_DIR, 'i18n.cpp'), []],
     [join(RUNTIME_DIR, 'i18n_common.cpp'), []],
     onLinux ? [join(RUNTIME_DIR, 'i18n_linux.cpp'), pkgConfig('--cflags')] : [join(RUNTIME_DIR, 'i18n_macos.mm'), ['-fobjc-arc']],
-    [join(ROOT, 'test/gen/fixtures/ui_stub.cpp'), []],
+    [join(ROOT, 'test/gen/fixtures', uiStub), onLinux ? pkgConfig('--cflags') : []],
   ];
   const objects: string[] = [];
   for (const [source, extra] of sources) {

@@ -3,6 +3,7 @@
 #include <dirent.h>
 #include <cctype>
 #include <cerrno>
+#include <cstddef>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -28,12 +29,13 @@ void (*g_hook)() = nullptr;
 // Tiny lists (at most one entry per language pack): cheaper than std::set.
 std::vector<std::string> g_offline;
 std::vector<std::string> g_inflight;
+// The progress of the downloads in flight, 0..1000 (per mille), parallel to g_inflight.
+std::vector<int> g_permille;
 
 bool has(const std::vector<std::string>& list, const std::string& tag) { return std::find(list.begin(), list.end(), tag) != list.end(); }
 void add(std::vector<std::string>& list, const std::string& tag) {
   if (!has(list, tag)) list.push_back(tag);
 }
-void drop(std::vector<std::string>& list, const std::string& tag) { list.erase(std::remove(list.begin(), list.end(), tag), list.end()); }
 
 std::string env_string(const char* name) {
   const char* value = std::getenv(name);
@@ -190,7 +192,7 @@ bool store_in_cache(const PackDef& pack, const std::string& bytes) {
 }
 
 // One blocking GET. Accepts only 200 with exactly the expected size and the pinned sha256.
-bool download_pack(const PackDef& pack, std::string& error) {
+bool download_pack(const PackDef& pack, std::string& error, platform::Progress progress = nullptr, void* context = nullptr) {
   std::string base = env_string("FORGE_I18N_BASE_URL");
   if (base.empty()) base = PACK_BASE_URL;
   const std::string url = base + pack.file;
@@ -202,7 +204,7 @@ bool download_pack(const PackDef& pack, std::string& error) {
   const std::string timeout_ms = env_string("FORGE_I18N_TIMEOUT_MS");
   if (!timeout_ms.empty()) request_ms = resource_ms = std::atoi(timeout_ms.c_str());
   platform::Http response;
-  if (!platform::http_get(url, forge_i18n::kMaxPackBytes, request_ms, resource_ms, url_allowed, response)) {
+  if (!platform::http_get(url, forge_i18n::kMaxPackBytes, request_ms, resource_ms, url_allowed, response, progress, context)) {
     error = response.error;
     return false;
   }
@@ -242,23 +244,63 @@ void apply_english() {
   g_active = "en";
 }
 
+void forget_download(const std::string& tag) {
+  for (std::size_t i = 0; i < g_inflight.size(); ++i) {
+    if (g_inflight[i] != tag) continue;
+    g_inflight.erase(g_inflight.begin() + static_cast<std::ptrdiff_t>(i));
+    g_permille.erase(g_permille.begin() + static_cast<std::ptrdiff_t>(i));
+    return;
+  }
+}
+
 struct Job {
   std::string tag;
   bool store_choice;
   bool ok;
+  int posted;  // the last per mille handed to the main thread (worker thread only)
 };
+
+// What the worker hands to the main thread: a copy, so it needs nothing that dies with the job.
+struct ProgressPost {
+  std::string tag;
+  int permille;
+};
+
+void progress_on_main(void* context) {
+  ProgressPost* post = static_cast<ProgressPost*>(context);
+  for (std::size_t i = 0; i < g_inflight.size(); ++i) {
+    if (g_inflight[i] != post->tag || g_permille[i] == post->permille) continue;
+    g_permille[i] = post->permille;
+    notify();
+  }
+  delete post;
+}
+
+// Worker thread. Without a Content-Length the total is the size the binary pins for the pack.
+void job_progress(void* context, std::size_t received, std::size_t total) {
+  Job* job = static_cast<Job*>(context);
+  if (total == 0) {
+    const PackDef* pack = find_pack(job->tag);
+    total = pack ? pack->size : 0;
+  }
+  if (total == 0) return;
+  const int permille = static_cast<int>(std::min<std::size_t>(received, total) * 1000 / total);
+  if (permille / 10 == job->posted / 10) return;  // at most one post per percent; 0% is shown from the start
+  job->posted = permille;
+  platform::post_to_main(progress_on_main, new ProgressPost{job->tag, permille});
+}
 
 void job_work(void* context) {
   Job* job = static_cast<Job*>(context);
   std::string error;
   const PackDef* pack = find_pack(job->tag);
-  job->ok = pack && download_pack(*pack, error);
+  job->ok = pack && download_pack(*pack, error, job_progress, job);
 }
 
 // On the main thread: the result counts only if it is still wanted.
 void job_done(void* context) {
   Job* job = static_cast<Job*>(context);
-  drop(g_inflight, job->tag);
+  forget_download(job->tag);
   if (job->ok) {
     if (g_wanted == job->tag && apply_cached(job->tag) && job->store_choice) store_language(job->tag);
   } else {
@@ -270,8 +312,10 @@ void job_done(void* context) {
 
 void download_and_apply(const std::string& tag, bool store_choice) {
   if (has(g_inflight, tag)) return;
-  add(g_inflight, tag);
-  platform::run_in_background(job_work, job_done, new Job{tag, store_choice, false});
+  g_inflight.push_back(tag);
+  g_permille.push_back(0);
+  platform::run_in_background(job_work, job_done, new Job{tag, store_choice, false, 0});
+  notify();  // a bar bound to the download shows up at 0%
 }
 
 const forge_i18n::Pack::Entry* find_entry(const std::string& context, std::string_view text) {
@@ -316,6 +360,14 @@ std::string stored_language() {
 std::string active_language() { return g_active; }
 
 bool language_offline(const std::string& tag) { return has(g_offline, tag); }
+
+bool download_active() { return !g_inflight.empty(); }
+
+double download_progress(const std::string& tag) {
+  for (std::size_t i = 0; i < g_inflight.size(); ++i)
+    if (tag.empty() || g_inflight[i] == tag) return g_permille[i] / 1000.0;
+  return -1;
+}
 
 void start_gui_language() {
   const std::string tag = pick_gui_tag(true);

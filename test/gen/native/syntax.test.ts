@@ -25,6 +25,8 @@ function richIr(): Ir {
         node('button', 'go', { content: { kind: 'state', state: 's1' }, on: { click: 'reset' }, style: { fontSize: 11 } }),
       ],
     }),
+    node('progress', 'bar', { progress: { value: 3, max: 4 }, style: { width: 200, height: 8, color: '#00aa00ff', flex: 1 } }),
+    node('progress', 'busy', { progress: { indeterminate: true } }),
   );
   return ir;
 }

@@ -65,6 +65,10 @@ void choose_language(const std::string& value);
 std::string stored_language();                    // "" = Auto
 std::string active_language();                    // "en" or the tag of the pack in use
 bool language_offline(const std::string& tag);    // its pack is not cached and could not be downloaded
+bool download_active();                           // a language pack download is in flight
+// The fraction 0..1 of the download of `tag` ("" = any download in flight), or -1 when there is none.
+// Calls the refresh hook (main thread) whenever it changes, and when a download starts or ends.
+double download_progress(const std::string& tag);
 
 // CLI: cache only. `lang_flag` is the value of --lang, or nullptr.
 void load_cli_language(const char* lang_flag);
