@@ -28,6 +28,31 @@ NSArray<NSButton*>* visible_buttons() {
   return buttons;
 }
 
+// With FORGE_GEOMETRY=1 a second line gives the rectangle of every visible button and of every 1 px high stack
+// (the dividers) as x,y,w,h in the window content, y from the top.
+void geometry() {
+  if (!std::getenv("FORGE_GEOMETRY")) return;
+  NSWindow* window = [[NSApp windows] firstObject];
+  NSView* content = [window contentView];
+  const CGFloat height = [content frame].size.height;
+  std::printf("geometry");
+  NSMutableArray<NSView*>* all = [NSMutableArray array];
+  std::vector<NSView*> stack = {content};
+  while (!stack.empty()) {
+    NSView* view = stack.back();
+    stack.pop_back();
+    if (![view isHiddenOrHasHiddenAncestor] && ([view isKindOfClass:[NSButton class]] || [view frame].size.height == 1)) [all addObject:view];
+    for (NSView* child in [view subviews]) stack.push_back(child);
+  }
+  for (NSView* view in all) {
+    const NSRect f = [view convertRect:[view alignmentRectForFrame:[view bounds]] toView:content];
+    const char* name = [view isKindOfClass:[NSButton class]] ? [[(NSButton*)view title] UTF8String] : "line";
+    std::printf(" %s=%d,%d,%d,%d", name, (int)f.origin.x, (int)(height - f.origin.y - f.size.height), (int)f.size.width, (int)f.size.height);
+  }
+  std::printf("\n");
+  std::fflush(stdout);
+}
+
 void report() {
   NSWindow* window = [[NSApp windows] firstObject];
   const NSSize size = [[window contentView] frame].size;
@@ -35,12 +60,15 @@ void report() {
   for (NSButton* button in visible_buttons()) std::printf(" %s%s", [button isEnabled] ? "" : "!", [[button title] UTF8String]);
   std::printf("\n");
   std::fflush(stdout);
+  geometry();
 }
 
 void step() {
   report();
   if (g_next >= g_clicks.size()) std::exit(0);
   const std::string title = g_clicks[g_next++];
+  int w = 0, h = 0;
+  if (std::sscanf(title.c_str(), "%dx%d", &w, &h) == 2) [[[NSApp windows] firstObject] setContentSize:NSMakeSize(w, h)];
   for (NSButton* button in visible_buttons()) {
     if (title == [[button title] UTF8String]) {
       [button performClick:nil];

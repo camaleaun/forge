@@ -156,6 +156,8 @@ function build(node: Node, parent: LayoutNode | undefined, languages: [string, s
   if (node.on?.click !== undefined) result.handler = node.on.click;
   if (node.kind === 'steps' || node.kind === 'step') result.role = node.kind;
   if (node.step !== undefined) result.step = node.step;
+  // The screens fill the window, so a footer (a last child after a growing one) sits at the bottom edge.
+  if (result.role !== undefined) result.grow = true;
   if (node.disabledDuringDownload) result.disabledDuringDownload = true;
   if (node.progress !== undefined) result.progress = node.progress;
   if (node.variants) result.variants = node.variants.map((variant) => ({ query: variant.query, set: changesOf(variant.style) }));

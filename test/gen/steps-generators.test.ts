@@ -25,6 +25,11 @@ describe('given the steps-app fixture (a language screen and a hello screen)', (
     assert.deepEqual(steps.children.map((s) => s.step), [{ width: 420, height: 180 }, { width: 600, height: 440 }]);
   });
 
+  it('when laying it out, then the steps and each step grow, so a footer can sit at the bottom of the window', async () => {
+    const steps = layoutOf((await irOf('steps-app', 'macos')).root).children[0];
+    assert.deepEqual([steps.grow, ...steps.children.map((s) => s.grow)], [true, true, true]);
+  });
+
   it('when generating the header, then it names the steps and the navigation the actions use', async () => {
     const header = generateAppHeader(await irOf('steps-app', 'macos'), true);
     assert.match(header, /enum class StepId \{ language, hello \};/);

@@ -109,7 +109,9 @@ import { next, back, quit, goTo } from 'forge';
 - `next` and `back` stop at the last and first screen. `goTo('id')` names a step: an unknown id is a build error at the button. `quit` closes the app (in the preview it returns to the first step and shows a notice).
 - A handler can combine them with state: `function confirm() { message.set('Done'); next(); }` runs the effects in order.
 - `next`, `back` and `goTo` need a `<steps>` in the window; `quit` does not. They cannot be used in a CLI command.
-- The preview shows only the current step and ignores the step sizes (it fills the page). The macOS and Linux generators do not support `<steps>` yet and stop with a clear error.
+- The preview shows only the current step and ignores the step sizes (it fills the page). On macOS and Linux each step is one page of the window: the first is shown, the others stay hidden, and every switch sets the window content size to the size of that screen (a missing side uses the size from `App.css`). A window with `<steps>` cannot be resized by the user.
+- A `<button waitsForDownload>` is disabled while a language pack is downloading and enabled again when the download ends or fails (the same signal as `<progress source="language-download">`).
+- `<steps>` and every `<step>` fill the window, so a child with `flex: 1` pushes the views after it to the bottom edge.
 
 ### One file per screen
 
@@ -136,6 +138,36 @@ export default function App() {
 `screens/Language.tsx` exports a function that returns `<step id="language" ...>` and imports `./Language.css`; `screens/Hello.tsx` does the same (with its own `state(...)`). Imports use the file extension (`./screens/Hello.tsx`). The CSS files are **global**, not scoped to the file: all imported stylesheets are merged in import order, so give each screen's classes distinct names (for example `.language-buttons`) when they should look different.
 
 Errors (with `App.tsx:line:column`): `<steps>` outside the window, a child of `<steps>` that is not a `<step>`, a step without `id`, duplicate ids, a size that is not a positive number, an empty step, and a `<step>` outside `<steps>`.
+
+## Header, content and footer with plain views
+
+There is no special footer element: a screen is a column of plain `<view>`s with classes, styled in the screen's own CSS file. The step fills the window, and the content view takes the free space with `flex: 1`, so the footer stays at the bottom edge when the window or the screen changes size:
+
+```tsx
+<step id="hello" width={600} height={440}>
+  <view class="content"><text>Hello!</text></view>
+  <view class="divider" />
+  <view class="footer">
+    <view class="nav">
+      <button onClick={back}>Back</button>
+      <button onClick={goTo('language')}>Language</button>
+    </view>
+    <button onClick={quit}>Close</button>
+  </view>
+</step>
+```
+
+```css
+step     { gap: 0; }
+.content { flex: 1; padding: 16px; }
+.divider { height: 1px; background: rgba(128, 128, 128, 0.4); }          /* neutral: works in light and dark */
+.footer  { flex-direction: row; justify-content: end; gap: 16px; padding: 14px; }
+.nav     { flex-direction: row; gap: 2px; }                                /* Back and Language almost touch */
+button   { width: 85px; height: 24px; }
+```
+
+- The divider is a view with `height: 1px` and a translucent gray `background`; the space between the line and the buttons is the footer's top padding.
+- A header band is the same idea: `<view class="header">` as the first child with `flex-direction: row` and `justify-content: space-between` (text on the left, an `<image>` later). A light header band needs its own text colour pair for dark mode, because text colours do not adapt to a fixed background.
 
 ## Commands (the CLI in the binary)
 

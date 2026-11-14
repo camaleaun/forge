@@ -9,7 +9,8 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { generateProject, writeProjectFiles, RUNTIME_DIR } from '../../../src/gen/index.ts';
 import { ROOT } from '../helpers.ts';
-import { stepsIr } from './steps-irs.ts';
+import type { Ir } from '../../../src/ir/types.ts';
+import { footerIr, stepsIr } from './steps-irs.ts';
 
 const has = (command: string, args: string[]): boolean => spawnSync(command, args).status === 0;
 const gtk = spawnSync('pkg-config', ['--cflags', '--libs', 'gtk4'], { encoding: 'utf8' });
@@ -18,22 +19,34 @@ const dir = mkdtempSync(join(tmpdir(), 'forge-gen-steps-linux-'));
 const binary = join(dir, 'app');
 after(() => rmSync(dir, { recursive: true, force: true }));
 
-before(() => {
-  if (!canRun) return;
-  writeProjectFiles(generateProject(stepsIr(), 'linux'), dir);
+const footerBinary = join(dir, 'footer');
+
+function compile(ir: Ir, out: string): void {
+  const sub = mkdtempSync(join(dir, 'p-'));
+  writeProjectFiles(generateProject(ir, 'linux'), sub);
   const result = spawnSync('g++', [
-    '-std=c++20', '-Wall', '-Wextra', '-Werror', '-Wno-unused-function', '-I', dir, '-I', RUNTIME_DIR,
-    join(ROOT, 'test/gen/fixtures/ui_steps_driver.cpp'), join(dir, 'ui_linux.cpp'), join(dir, 'actions.cpp'), ...gtk.stdout.trim().split(/\s+/), '-o', binary,
+    '-std=c++20', '-Wall', '-Wextra', '-Werror', '-Wno-unused-function', '-I', sub, '-I', RUNTIME_DIR,
+    join(ROOT, 'test/gen/fixtures/ui_steps_driver.cpp'), join(sub, 'ui_linux.cpp'), join(sub, 'actions.cpp'), ...gtk.stdout.trim().split(/\s+/), '-o', out,
   ], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
+}
+
+before(() => {
+  if (!canRun) return;
+  compile(stepsIr(), binary);
+  compile(footerIr(), footerBinary);
 });
 
-function lines(...clicks: string[]): string[] {
-  const env = { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', GDK_BACKEND: 'x11' };
-  const run = has('dbus-run-session', ['--version']) ? ['dbus-run-session', '--', binary, ...clicks] : [binary, ...clicks];
+function output(program: string, args: string[], extra: Record<string, string> = {}): string[] {
+  const env = { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', GDK_BACKEND: 'x11', ...extra };
+  const run = has('dbus-run-session', ['--version']) ? ['dbus-run-session', '--', program, ...args] : [program, ...args];
   const result = spawnSync('xvfb-run', ['-a', '-s', '-screen 0 1280x800x24', ...run], { encoding: 'utf8', env, timeout: 60000 });
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  return result.stdout.trim().split('\n').filter((line) => /^\d+x\d+ resizable=/.test(line));
+  return result.stdout.trim().split('\n');
+}
+
+function lines(...clicks: string[]): string[] {
+  return output(binary, clicks).filter((line) => /^\d+x\d+ resizable=/.test(line));
 }
 
 describe('given a generated GTK app with two screens, running in a real window', { skip: !canRun && 'needs Linux with g++, GTK 4 and xvfb-run' }, () => {
@@ -55,4 +68,32 @@ describe('given a generated GTK app with two screens, running in a real window',
   it('when Quit is clicked, then the app ends by itself (no further report)', () => {
     assert.equal(lines('Next', 'Quit').length, 2);
   });
+});
+
+type Rect = { x: number; y: number; w: number; h: number };
+
+// The rectangles of the footer app (x,y,w,h from the top left of the content) after each size, by name.
+function rects(...resizes: string[]): Record<string, Rect>[] {
+  return output(footerBinary, resizes, { FORGE_GEOMETRY: '1' })
+    .filter((line) => line.startsWith('geometry'))
+    .map((line) => Object.fromEntries(line.split(' ').slice(1).map((token) => {
+      const [name, numbers] = token.split('=');
+      const [x, y, w, h] = numbers.split(',').map(Number);
+      return [name, { x, y, w, h }];
+    })));
+}
+
+// GTK's theme may make a button larger than the 85x24 asked for (it is a minimum): the edges and the gap are what the CSS fixes.
+describe('given a screen made of plain views (a growing content, a 1 px divider and a footer row), in a real window', { skip: !canRun && 'needs Linux with g++, GTK 4 and xvfb-run' }, () => {
+  for (const [size, width, height] of [['600x440', 600, 440], ['700x500', 700, 500]] as const) {
+    it(`when the window is ${size}, then the footer is pinned to the bottom right (14 px margins, 12 px gap) under a 1 px full-width line`, () => {
+      const { Back, Close, line } = rects(...(size === '600x440' ? [] : [size])).at(-1)!;
+      assert.ok(Back.w >= 85 && Back.h >= 24, `actual Back ${JSON.stringify(Back)}`);
+      assert.equal(Close.x + Close.w, width - 14, `actual Close ${JSON.stringify(Close)}`);
+      assert.equal(Close.y + Close.h, height - 14);
+      assert.equal(Close.x - (Back.x + Back.w), 12);
+      assert.deepEqual([line.x, line.w, line.h], [0, width, 1]);
+      assert.equal(line.y + 1 + 14 + Close.h + 14, height, 'the line is right above the footer');
+    });
+  }
 });

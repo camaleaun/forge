@@ -224,7 +224,7 @@ int forge_app::run_ui(int argc, char** argv) {
     [w_window_0 setSpacing:12];
     [w_window_0 setEdgeInsets:NSEdgeInsetsMake(20, 20, 20, 20)];
     [w_window_0 setAlignment:NSLayoutAttributeLeading];
-    [w_window_0 setDistribution:NSStackViewDistributionGravityAreas];
+    [w_window_0 setDistribution:NSStackViewDistributionFill];
     [content addSubview:w_window_0];
     [NSLayoutConstraint activateConstraints:@[
       [[w_window_0 topAnchor] constraintEqualToAnchor:[content topAnchor]],
@@ -239,9 +239,10 @@ int forge_app::run_ui(int argc, char** argv) {
     [w_steps_1 setSpacing:0];
     [w_steps_1 setEdgeInsets:NSEdgeInsetsMake(0, 0, 0, 0)];
     [w_steps_1 setAlignment:NSLayoutAttributeLeading];
-    [w_steps_1 setDistribution:NSStackViewDistributionGravityAreas];
-    [w_window_0 addView:w_steps_1 inGravity:NSStackViewGravityTop];
+    [w_steps_1 setDistribution:NSStackViewDistributionFill];
+    [w_window_0 addArrangedSubview:w_steps_1];
     [[[w_steps_1 widthAnchor] constraintEqualToAnchor:[w_window_0 widthAnchor] constant:-40] setActive:YES];
+    [w_steps_1 setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationVertical];
 
     NSStackView* w_language = [[NSStackView alloc] init];
     [w_language setTranslatesAutoresizingMaskIntoConstraints:NO];
@@ -250,8 +251,9 @@ int forge_app::run_ui(int argc, char** argv) {
     [w_language setEdgeInsets:NSEdgeInsetsMake(0, 0, 0, 0)];
     [w_language setAlignment:NSLayoutAttributeLeading];
     [w_language setDistribution:NSStackViewDistributionGravityAreas];
-    [w_steps_1 addView:w_language inGravity:NSStackViewGravityTop];
+    [w_steps_1 addArrangedSubview:w_language];
     [[[w_language widthAnchor] constraintEqualToAnchor:[w_steps_1 widthAnchor]] setActive:YES];
+    [w_language setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationVertical];
 
     NSTextField* w_text_3 = [NSTextField labelWithString:@""];
     g_surface.bind_text(Kind::Label, w_text_3, Text::msg(2));
@@ -311,8 +313,9 @@ int forge_app::run_ui(int argc, char** argv) {
     [w_hello setEdgeInsets:NSEdgeInsetsMake(0, 0, 0, 0)];
     [w_hello setAlignment:NSLayoutAttributeLeading];
     [w_hello setDistribution:NSStackViewDistributionGravityAreas];
-    [w_steps_1 addView:w_hello inGravity:NSStackViewGravityTop];
+    [w_steps_1 addArrangedSubview:w_hello];
     [[[w_hello widthAnchor] constraintEqualToAnchor:[w_steps_1 widthAnchor]] setActive:YES];
+    [w_hello setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientationVertical];
 
     NSTextField* w_text_10 = [NSTextField labelWithString:@""];
     [w_text_10 setFont:[NSFont systemFontOfSize:15 weight:NSFontWeightRegular]];

@@ -212,10 +212,12 @@ void activate(GtkApplication* app, gpointer) {
 
   GtkWidget* w_steps_1 = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_widget_set_halign(w_steps_1, GTK_ALIGN_FILL);
+  gtk_widget_set_vexpand(w_steps_1, TRUE);
   gtk_box_append(GTK_BOX(w_window_0), w_steps_1);
 
   GtkWidget* w_language = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_widget_set_halign(w_language, GTK_ALIGN_FILL);
+  gtk_widget_set_vexpand(w_language, TRUE);
   gtk_box_append(GTK_BOX(w_steps_1), w_language);
 
   GtkWidget* w_text_3 = gtk_label_new("");
@@ -258,6 +260,7 @@ void activate(GtkApplication* app, gpointer) {
 
   GtkWidget* w_hello = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_widget_set_halign(w_hello, GTK_ALIGN_FILL);
+  gtk_widget_set_vexpand(w_hello, TRUE);
   gtk_box_append(GTK_BOX(w_steps_1), w_hello);
 
   GtkWidget* w_text_10 = gtk_label_new("");

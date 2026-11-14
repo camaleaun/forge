@@ -31,12 +31,34 @@ std::vector<GtkWidget*> visible_buttons() {
   return buttons;
 }
 
+// With FORGE_GEOMETRY=1 a second line gives the rectangle of every visible button and of every 1 px high widget
+// (the dividers) as x,y,w,h relative to the window content.
+void collect_rects(GtkWidget* widget, GtkWidget* content, std::string& out) {
+  const bool button = GTK_IS_BUTTON(widget);
+  if (gtk_widget_get_mapped(widget) && (button || gtk_widget_get_height(widget) == 1)) {
+    graphene_rect_t b;
+    if (gtk_widget_compute_bounds(widget, content, &b))
+      out += " " + std::string(button ? gtk_button_get_label(GTK_BUTTON(widget)) : "line") + "=" + std::to_string(static_cast<int>(b.origin.x + 0.5f)) + "," +
+             std::to_string(static_cast<int>(b.origin.y + 0.5f)) + "," + std::to_string(static_cast<int>(b.size.width + 0.5f)) + "," + std::to_string(static_cast<int>(b.size.height + 0.5f));
+  }
+  for (GtkWidget* child = gtk_widget_get_first_child(widget); child; child = gtk_widget_get_next_sibling(child)) collect_rects(child, content, out);
+}
+
+void geometry() {
+  if (!std::getenv("FORGE_GEOMETRY")) return;
+  std::string out = "geometry";
+  collect_rects(gtk_window_get_child(the_window()), gtk_window_get_child(the_window()), out);
+  std::printf("%s\n", out.c_str());
+  std::fflush(stdout);
+}
+
 void report() {
   GtkWidget* content = gtk_window_get_child(the_window());
   std::printf("%dx%d resizable=%d", gtk_widget_get_width(content), gtk_widget_get_height(content), gtk_window_get_resizable(the_window()) ? 1 : 0);
   for (GtkWidget* button : visible_buttons()) std::printf(" %s%s", gtk_widget_is_sensitive(button) ? "" : "!", gtk_button_get_label(GTK_BUTTON(button)));
   std::printf("\n");
   std::fflush(stdout);
+  geometry();
 }
 
 gboolean step(gpointer) {
@@ -44,6 +66,11 @@ gboolean step(gpointer) {
   report();
   if (g_next >= g_clicks.size()) std::exit(0);
   const std::string label = g_clicks[g_next++];
+  int w = 0, h = 0;
+  if (std::sscanf(label.c_str(), "%dx%d", &w, &h) == 2) {
+    gtk_window_set_default_size(the_window(), w, h);
+    gtk_widget_set_size_request(gtk_window_get_child(the_window()), w, h);
+  }
   for (GtkWidget* button : visible_buttons()) {
     if (label == gtk_button_get_label(GTK_BUTTON(button))) {
       gtk_widget_activate(button);

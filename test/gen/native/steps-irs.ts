@@ -30,3 +30,34 @@ export function stepsIr(): Ir {
   ir.commands = [];
   return ir;
 }
+
+const view = (id: string, style: Node['style'], children: Node[] = []): Node => node('view', id, { style, children });
+
+// One 600x440 screen laid out as "content, divider, footer" with plain views: the content grows, the divider is 1 px
+// high with a neutral translucent gray, the footer is a right-aligned row of 85x24 buttons (gap 12, padding 14).
+export function footerIr(): Ir {
+  const ir = helloIr();
+  ir.root.style = { width: 320, height: 200 };
+  const sized = { width: 85, height: 24 };
+  ir.root.children = [
+    node('steps', 'steps_1', {
+      children: [
+        node('step', 'only', {
+          step: { width: 600, height: 440 },
+          children: [
+            view('content', { flex: 1 }, [node('text', 'label', { content: { kind: 'literal', value: 'Hello' } })]),
+            view('divider', { height: 1, background: '#80808066' }),
+            view('footer', { flexDirection: 'row', justifyContent: 'end', gap: 12, padding: [14, 14, 14, 14] }, [
+              node('button', 'b1', { content: { kind: 'literal', value: 'Back' }, style: sized, on: { click: 'back' } }),
+              node('button', 'b2', { content: { kind: 'literal', value: 'Close' }, style: sized, on: { click: 'quit' } }),
+            ]),
+          ],
+        }),
+      ],
+    }),
+  ];
+  ir.states = [];
+  ir.handlers = [{ id: 'back', effects: [{ op: 'go', to: 'back' }] }, { id: 'quit', effects: [{ op: 'quit' }] }];
+  ir.commands = [];
+  return ir;
+}
