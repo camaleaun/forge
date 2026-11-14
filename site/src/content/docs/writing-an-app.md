@@ -66,6 +66,8 @@ The TSX is transformed by a small dependency-free JSX transformer, so there is n
 
 Any element can have `class` and `id`. Ids must match `^[a-z][A-Za-z0-9_]*$`, must be unique, must not be a C++ keyword, and must not start with `forge_`, `s` followed by a digit, or `handler_`.
 
+Translatable phrases (`__('...')`) inside `<only>`/`<except>` count for the language catalog of **every** target: `forge build --target X`, `forge i18n extract`, `forge i18n check` and the `forge start` pack all use the union over all targets. The language pack of one project is therefore byte-identical (same sha256, size and file name) whichever target built it, and a translation is an orphan only when no target uses its phrase. The generated binary keeps the message table of its own target.
+
 ## State and handlers
 
 `state(initial)` creates a piece of text state. `<text>{message}</text>` binds the element to it, and `message.set('...')` changes it.

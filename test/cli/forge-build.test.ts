@@ -343,3 +343,89 @@ describe('given forge build --target linux with package metadata and an icon', (
     rmSync(target, { recursive: true, force: true });
   });
 });
+
+describe('given an app whose phrases live inside <only macos> and <only linux>', () => {
+  const PT = 'Quit with Cmd+Q\tSaia com Cmd+Q\nQuit with Ctrl+Q\tSaia com Ctrl+Q\nGreet\tCumprimentar\nHello, forge\tOlá, forge\n';
+
+  function withTargetApp(lang: string, run: (dir: string) => void) {
+    withProjectCopy((dir) => {
+      mkdirSync(join(dir, 'languages'));
+      writeFileSync(join(dir, 'languages', 'pt-BR.lang'), lang);
+      const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ ...pkg, repository: 'github:example/union' }));
+      const app = readFileSync(join(dir, 'App.tsx'), 'utf8').replace("import { state }", "import { state, __ }").replace(
+        '<button onClick={greet}>Greet</button>',
+        "<button onClick={greet}>Greet</button>\n      <only macos><text>{__('Quit with Cmd+Q')}</text></only>\n      <only linux><text>{__('Quit with Ctrl+Q')}</text></only>",
+      );
+      writeFileSync(join(dir, 'App.tsx'), app);
+    }, run);
+  }
+
+  function buildFor(dir: string, target: string, ...extra: string[]) {
+    const target_out = mkdtempSync(join(tmpdir(), 'forge-union-out-'));
+    const result = forge('build', '--project', dir, '--target', target, '--out', target_out, ...extra);
+    return { result, out: target_out };
+  }
+
+  it('when building for macos and for linux, then the language packs are byte-identical and --strict-i18n passes on both', () => {
+    withTargetApp(PT, (dir) => {
+      const mac = buildFor(dir, 'macos', '--strict-i18n');
+      const linux = buildFor(dir, 'linux', '--strict-i18n');
+      try {
+        assert.equal(mac.result.status, 0, mac.result.stderr);
+        assert.equal(linux.result.status, 0, linux.result.stderr);
+        assert.equal(mac.result.stderr, '');
+        assert.equal(linux.result.stderr, '');
+        const files = readdirSync(join(mac.out, 'lang'));
+        assert.deepEqual(files, readdirSync(join(linux.out, 'lang')));
+        assert.equal(files.length, 1);
+        assert.deepEqual(readFileSync(join(mac.out, 'lang', files[0])), readFileSync(join(linux.out, 'lang', files[0])));
+        assert.match(readFileSync(join(linux.out, 'lang', files[0]), 'utf8'), /Quit with Cmd\+Q\tSaia com Cmd\+Q/);
+      } finally {
+        rmSync(mac.out, { recursive: true, force: true });
+        rmSync(linux.out, { recursive: true, force: true });
+      }
+    });
+  });
+
+  it('when a phrase is translated but used in no target, then it is an orphan on every target', () => {
+    withTargetApp(PT + 'Never shown\tNunca\n', (dir) => {
+      for (const target of ['macos', 'linux']) {
+        const built = buildFor(dir, target, '--strict-i18n');
+        try {
+          assert.equal(built.result.status, 1, target);
+          assert.match(built.result.stderr, /orphan "Never shown"/);
+          assert.doesNotMatch(built.result.stderr, /orphan "Quit with/);
+        } finally {
+          rmSync(built.out, { recursive: true, force: true });
+        }
+      }
+    });
+  });
+
+  it('when a target-only phrase has no translation, then it is missing on every target', () => {
+    withTargetApp('Greet\tCumprimentar\nHello, forge\tOlá, forge\nQuit with Cmd+Q\tSaia com Cmd+Q\n', (dir) => {
+      for (const target of ['macos', 'linux']) {
+        const built = buildFor(dir, target);
+        try {
+          assert.match(built.result.stderr, /missing "Quit with Ctrl\+Q"/, target);
+        } finally {
+          rmSync(built.out, { recursive: true, force: true });
+        }
+      }
+    });
+  });
+
+  it('when running forge i18n extract and check, then both cover the phrases of every target', () => {
+    withTargetApp(PT, (dir) => {
+      const extract = forge('i18n', 'extract', '--project', dir);
+      assert.equal(extract.status, 0, extract.stderr);
+      const template = readFileSync(join(dir, 'languages', 'template.lang'), 'utf8');
+      assert.match(template, /Quit with Cmd\+Q/);
+      assert.match(template, /Quit with Ctrl\+Q/);
+      const check = forge('i18n', 'check', '--project', dir, '--strict');
+      assert.equal(check.status, 0, check.stdout + check.stderr);
+      assert.match(check.stdout, /pt-BR: 4\/4 phrases/);
+    });
+  });
+});

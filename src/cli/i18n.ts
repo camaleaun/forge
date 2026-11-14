@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { checkProjectI18n, extractTemplate } from '../i18n/project.ts';
 import { buildProjectIr } from '../project/build.ts';
+import { unionMessages } from '../project/messages.ts';
 
 export type I18nCommand = { action: 'extract' | 'check'; project: string; strict?: boolean };
 
@@ -17,12 +18,13 @@ export async function i18n(command: I18nCommand): Promise<number> {
     for (const error of errors) console.error(`error: ${error}`);
     return 1;
   }
+  const phrases = await unionMessages(dir, { target: 'web', ir });
   if (command.action === 'extract') {
-    writeFileSync(join(dir, 'languages', 'template.lang'), extractTemplate(ir.messages));
-    console.log(`languages/template.lang: ${ir.messages.length} phrases`);
+    writeFileSync(join(dir, 'languages', 'template.lang'), extractTemplate(phrases));
+    console.log(`languages/template.lang: ${phrases.length} phrases`);
     return 0;
   }
-  const result = checkProjectI18n(dir, ir);
+  const result = checkProjectI18n(dir, ir, phrases);
   for (const error of result.errors) console.error(`error: ${error}`);
   if (result.locales.length === 0 && result.errors.length === 0) console.log('no translations: add languages/<tag>.lang (forge i18n extract writes a template)');
   let incomplete = false;

@@ -7,6 +7,7 @@ import { loadProjectI18n } from '../i18n/project.ts';
 import type { Ir } from '../ir/types.ts';
 import { appIdFor } from '../project/app-id.ts';
 import { buildProjectIr } from '../project/build.ts';
+import { unionMessages } from '../project/messages.ts';
 import { readPackageMeta } from '../project/package-meta.ts';
 
 export type BuildOptions = { project: string; target: string; out: string; strictI18n?: boolean };
@@ -27,7 +28,7 @@ export async function build(options: BuildOptions): Promise<number> {
     for (const error of errors) console.error(`error: ${error}`);
     return 1;
   }
-  const i18n = loadProjectI18n(resolve(options.project), ir, pkg);
+  const i18n = loadProjectI18n(resolve(options.project), ir, pkg, await unionMessages(resolve(options.project), { target: options.target, ir }));
   // --strict-i18n makes every warning an error (releases use it).
   const errors18n = [...i18n.errors];
   if (i18n.packs.length === 0 && hasLanguageSelect(ir.root)) {

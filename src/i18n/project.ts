@@ -86,16 +86,17 @@ function readLangFiles(projectDir: string): { files: { name: string; text: strin
   return { files, errors };
 }
 
-function catalogOf(projectDir: string, ir: Ir): { catalog: Catalog; errors: string[] } {
+// `phrases` is every phrase of the app over all targets (see project/messages.ts); it defaults to the IR's own.
+function catalogOf(projectDir: string, ir: Ir, phrases: Ir['messages'] = ir.messages): { catalog: Catalog; errors: string[] } {
   const read = readLangFiles(projectDir);
-  const catalog = loadCatalog(read.files, { appPhrases: ir.messages });
+  const catalog = loadCatalog(read.files, { appPhrases: phrases });
   return { catalog, errors: [...read.errors, ...catalog.errors] };
 }
 
-export function loadProjectI18n(projectDir: string, ir: Ir, pkg: PackageInfo): ProjectI18n {
+export function loadProjectI18n(projectDir: string, ir: Ir, pkg: PackageInfo, phrases?: Ir['messages']): ProjectI18n {
   const forge = isRecord(pkg.forge) && isRecord(pkg.forge.i18n) ? pkg.forge.i18n : {};
   const options = { download: forge.download !== false, menu: forge.menu === true };
-  const { catalog, errors } = catalogOf(projectDir, ir);
+  const { catalog, errors } = catalogOf(projectDir, ir, phrases);
   const warnings = [...catalog.warnings];
   const packs: ProjectPack[] = [];
   for (const { tag, file } of catalog.locales) {
@@ -147,17 +148,17 @@ export function extractTemplate(messages: Ir['messages']): string {
 
 export type LocaleCoverage = { tag: string; translated: number; total: number; missing: string[]; orphans: string[] };
 
-export function checkProjectI18n(projectDir: string, ir: Ir): { locales: LocaleCoverage[]; errors: string[] } {
-  const { catalog, errors } = catalogOf(projectDir, ir);
+export function checkProjectI18n(projectDir: string, ir: Ir, appPhrases: Ir['messages'] = ir.messages): { locales: LocaleCoverage[]; errors: string[] } {
+  const { catalog, errors } = catalogOf(projectDir, ir, appPhrases);
   const keyOf = (context: string | undefined, text: string) => `${context ?? ''}\0${text}`;
-  const phrases = new Set(ir.messages.map((m) => keyOf(m.context, m.text)));
+  const phrases = new Set(appPhrases.map((m) => keyOf(m.context, m.text)));
   const locales = catalog.locales.map(({ tag, file }) => {
     const translated = new Set(file.entries.filter((e) => e.forms.some((f) => f !== '')).map((e) => keyOf(e.context, e.text)));
     return {
       tag,
-      translated: ir.messages.filter((m) => translated.has(keyOf(m.context, m.text))).length,
-      total: ir.messages.length,
-      missing: ir.messages.filter((m) => !translated.has(keyOf(m.context, m.text))).map((m) => m.text),
+      translated: appPhrases.filter((m) => translated.has(keyOf(m.context, m.text))).length,
+      total: appPhrases.length,
+      missing: appPhrases.filter((m) => !translated.has(keyOf(m.context, m.text))).map((m) => m.text),
       orphans: file.entries.filter((e) => !phrases.has(keyOf(e.context, e.text))).map((e) => e.text),
     };
   });

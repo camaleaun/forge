@@ -6,6 +6,7 @@ import { qrMatrix } from '../qr/qr.ts';
 import { qrToTerminal } from '../qr/render.ts';
 import { loadProjectI18n } from '../i18n/project.ts';
 import { buildProjectIr } from '../project/build.ts';
+import { unionMessages } from '../project/messages.ts';
 import { handleKey } from './keys.ts';
 import { openCommand } from './open.ts';
 
@@ -34,7 +35,7 @@ export async function start(options: StartOptions): Promise<void> {
       const built = await buildProjectIr(projectDir, 'web');
       if (!built.ir || !built.pkg) return { errors: built.errors };
       // Language packs come from languages/*.lang, the same way `forge build` makes them.
-      const i18n = loadProjectI18n(projectDir, built.ir, built.pkg);
+      const i18n = loadProjectI18n(projectDir, built.ir, built.pkg, await unionMessages(projectDir, { target: 'web', ir: built.ir }));
       if (i18n.errors.length > 0) return { errors: i18n.errors };
       return { ir: built.ir, errors: [], packs: i18n.packs.map((pack) => ({ tag: pack.tag, text: pack.text })) };
     },
