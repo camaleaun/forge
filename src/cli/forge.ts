@@ -1,11 +1,13 @@
 import { build } from './build.ts';
 import { INFO_FIELDS, info } from './info.ts';
+import { start } from './start.ts';
 import { manifest } from './manifest.ts';
 
 const USAGE = `Usage:
   forge build [--project <dir>] [--target macos] --out <dir>
   forge manifest --dir <dir> --tag <tag> --repo <owner/repo>
-  forge info [--project <dir>] --field name|version`;
+  forge info [--project <dir>] --field name|version
+  forge start [--project <dir>] [--port 5170] [--lan]`;
 
 function option(args: string[], name: string, fallback?: string): string | undefined {
   const index = args.indexOf(name);
@@ -39,4 +41,10 @@ if (command === 'info') {
   process.exit(info({ project: option(args, '--project', '.')!, field }));
 }
 
-usage();
+if (command === 'start') {
+  const port = Number(option(args, '--port', '5170'));
+  if (!Number.isInteger(port) || port < 0 || port > 65535) usage();
+  await start({ project: option(args, '--project', '.')!, port, lan: args.includes('--lan') });
+} else {
+  usage();
+}
