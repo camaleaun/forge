@@ -5,7 +5,7 @@ import { start } from './start.ts';
 import { manifest } from './manifest.ts';
 
 const USAGE = `Usage:
-  forge build [--project <dir>] [--target macos] --out <dir> [--strict-i18n]
+  forge build [--project <dir>] [--target macos|linux] --out <dir> [--strict-i18n]
   forge i18n extract [--project <dir>]
   forge i18n check [--project <dir>] [--strict]
   forge manifest --dir <dir> --tag <tag> --repo <owner/repo>

@@ -67,7 +67,7 @@ describe('given an app with package.json, App.tsx and App.css', () => {
   it('when the target is not supported, then the exit code is 1 and stderr names the target', () => {
     const result = forge('build', '--project', fixture, '--target', 'beos', '--out', out);
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /unsupported target "beos" \(supported: macos\)/);
+    assert.match(result.stderr, /unsupported target "beos" \(supported: macos, linux\)/);
   });
 });
 
@@ -273,5 +273,20 @@ describe('given an app with a <select language> element', () => {
       assert.equal(result.status, 0, result.stderr);
       assert.ok(written.includes('lang'));
     });
+  });
+});
+
+describe('given forge build --target linux', () => {
+  it('when building the hello app, then the output has the Linux sources and runtime, with no macOS files', () => {
+    const target = mkdtempSync(join(tmpdir(), 'forge-linux-out-'));
+    try {
+      const result = forge('build', '--project', fixture, '--target', 'linux', '--out', target);
+      assert.equal(result.status, 0, result.stderr);
+      assert.deepEqual(readdirSync(target).sort(), [
+        'CMakeLists.txt', 'actions.cpp', 'cli_router.cpp', 'cli_surface.hpp', 'forge_app.hpp', 'local.forge.hello.desktop', 'main.cpp', 'ui_linux.cpp',
+      ]);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
   });
 });

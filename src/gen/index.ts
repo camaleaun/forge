@@ -5,25 +5,32 @@ import { buildIcns } from '../icon/icns.ts';
 import { encodePng } from '../dmg/png.ts';
 import { withBuiltinMessages } from '../i18n/builtin.ts';
 import type { Ir } from '../ir/types.ts';
+import { appIdFor } from '../project/app-id.ts';
 import { generateActionsCpp } from './actions-cpp.ts';
 import { generateAppHeader } from './app-header.ts';
 import { generateCliRouter } from './cli-router.ts';
 import { generateCmake } from './cmake.ts';
+import { generateCmakeLinux } from './cmake-linux.ts';
 import { generateDmgSetupScript } from './dmg.ts';
 import type { I18nGenOptions } from './i18n-options.ts';
+import { generateDesktopEntry } from './linux-desktop.ts';
+import { generateLinuxUi } from './linux.ts';
 import { generateMacosUi } from './macos.ts';
 import { generateMessagesCpp } from './messages-cpp.ts';
 
-export const TARGETS = ['macos'];
+export const TARGETS = ['macos', 'linux'];
 // Hand-written runtime sources that the build copies next to the generated files.
 export const RUNTIME_FILES = ['main.cpp', 'cli_surface.hpp'];
 // The i18n runtime is copied only for apps that have language packs.
 export const I18N_RUNTIME_FILES = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_macos.mm'];
+// Linux shares the loader core and swaps the platform adapter (i18n_platform.hpp is its interface).
+export const I18N_RUNTIME_FILES_LINUX = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_platform.hpp', 'i18n_linux.cpp'];
 export function hasPacks(i18n: I18nGenOptions | undefined): i18n is I18nGenOptions {
   return i18n !== undefined && i18n.packs.length > 0;
 }
-export function runtimeFilesFor(i18n?: I18nGenOptions): string[] {
-  return hasPacks(i18n) ? [...RUNTIME_FILES, ...I18N_RUNTIME_FILES] : RUNTIME_FILES;
+export function runtimeFilesFor(i18n?: I18nGenOptions, target = 'macos'): string[] {
+  if (!hasPacks(i18n)) return RUNTIME_FILES;
+  return [...RUNTIME_FILES, ...(target === 'linux' ? I18N_RUNTIME_FILES_LINUX : I18N_RUNTIME_FILES)];
 }
 export const RUNTIME_DIR = new URL('./runtime/', import.meta.url).pathname;
 
@@ -35,13 +42,14 @@ function dmgBackground(scale: 1 | 2): Uint8Array {
 }
 
 // Returns relative path -> file content for the generated (not runtime) files.
-export function generateProject(source: Ir, target: string, options: { iconSvg?: string; i18n?: I18nGenOptions } = {}): ProjectFiles {
+export function generateProject(source: Ir, target: string, options: { iconSvg?: string; i18n?: I18nGenOptions; appId?: string } = {}): ProjectFiles {
   const i18nMode = hasPacks(options.i18n);
   // forge's own help texts become messages in i18n mode so the packs can translate them.
   const ir = i18nMode ? withBuiltinMessages(source) : source;
-  if (target !== 'macos') throw new Error(`unsupported target "${target}" (supported: ${TARGETS.join(', ')})`);
+  if (!TARGETS.includes(target)) throw new Error(`unsupported target "${target}" (supported: ${TARGETS.join(', ')})`);
   if (ir.app.icon && options.iconSvg === undefined) throw new Error('the app has an icon but no icon.svg source was given');
   const i18n = hasPacks(options.i18n) ? options.i18n : undefined;
+  if (target === 'linux') return generateLinuxProject(ir, i18n, options.appId ?? appIdFor(ir.app, 'linux'));
   const files: ProjectFiles = new Map([
     ['forge_app.hpp', generateAppHeader(ir, !!i18n)],
     ['actions.cpp', generateActionsCpp(ir, !!i18n)],
@@ -54,6 +62,19 @@ export function generateProject(source: Ir, target: string, options: { iconSvg?:
   ]);
   if (i18n) files.set('messages.cpp', generateMessagesCpp(ir, i18n));
   if (ir.app.icon && options.iconSvg !== undefined) files.set(ir.app.icon, buildIcns(options.iconSvg));
+  return files;
+}
+
+function generateLinuxProject(ir: Ir, i18n: I18nGenOptions | undefined, appId: string): ProjectFiles {
+  const files: ProjectFiles = new Map([
+    ['forge_app.hpp', generateAppHeader(ir, !!i18n)],
+    ['actions.cpp', generateActionsCpp(ir, !!i18n)],
+    ['cli_router.cpp', generateCliRouter(ir, !!i18n)],
+    ['ui_linux.cpp', generateLinuxUi(ir, appId, i18n)],
+    ['CMakeLists.txt', generateCmakeLinux(ir, !!i18n)],
+    [`${appId}.desktop`, generateDesktopEntry(ir, appId)],
+  ]);
+  if (i18n) files.set('messages.cpp', generateMessagesCpp(ir, i18n));
   return files;
 }
 

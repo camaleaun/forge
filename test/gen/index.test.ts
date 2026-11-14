@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { generateProject, writeProjectFiles, RUNTIME_DIR, RUNTIME_FILES } from '../../src/gen/index.ts';
+import { generateProject, writeProjectFiles, runtimeFilesFor, RUNTIME_DIR, RUNTIME_FILES, TARGETS } from '../../src/gen/index.ts';
 import { helloIr } from './helpers.ts';
 
 describe('given the hello IR and the macos target', () => {
@@ -33,7 +33,7 @@ describe('given the hello IR and the macos target', () => {
 
 describe('given an unsupported target', () => {
   it('when generating, then it throws naming the supported targets', () => {
-    assert.throws(() => generateProject(helloIr(), 'beos'), { message: 'unsupported target "beos" (supported: macos)' });
+    assert.throws(() => generateProject(helloIr(), 'beos'), { message: 'unsupported target "beos" (supported: macos, linux)' });
   });
 });
 
@@ -76,5 +76,41 @@ describe('given an IR with an app icon', () => {
 
   it('when the IR has no icon, then no AppIcon.icns is generated', () => {
     assert.ok(!generateProject(helloIr(), 'macos').has('AppIcon.icns'));
+  });
+});
+
+describe('given the hello IR and the linux target', () => {
+  it('when generating the project, then the Linux sources and the .desktop are returned, with no macOS or DMG files', () => {
+    const files = generateProject(helloIr(), 'linux');
+    assert.deepEqual([...files.keys()].sort(), [
+      'CMakeLists.txt', 'actions.cpp', 'cli_router.cpp', 'forge_app.hpp', 'local.forge.hello.desktop', 'ui_linux.cpp',
+    ]);
+  });
+  it('when the app name has a dash, then the .desktop is named after the dash-free id', () => {
+    const ir = helloIr();
+    ir.app.name = 'my-app';
+    assert.ok(generateProject(ir, 'linux').has('local.forge.my_app.desktop'));
+  });
+  it('when an explicit appId is given, then the .desktop uses it', () => {
+    assert.ok(generateProject(helloIr(), 'linux', { appId: 'org.example.Hello' }).has('org.example.Hello.desktop'));
+  });
+  it('when listing targets, then macos and linux are supported', () => {
+    assert.deepEqual(TARGETS, ['macos', 'linux']);
+  });
+});
+
+describe('given the runtime file lists per target', () => {
+  it('when there are no packs, then both targets copy the same plain runtime', () => {
+    assert.deepEqual(runtimeFilesFor(undefined, 'linux'), RUNTIME_FILES);
+    assert.deepEqual(runtimeFilesFor(undefined), RUNTIME_FILES);
+  });
+  it('when there are packs, then linux gets the shared loader plus the linux adapter and no i18n_macos.mm', () => {
+    const i18n = { appId: 'x.y', packs: [{ tag: 'pt-BR', file: 'a.lang', sha256: '0'.repeat(64), size: 1 }], baseUrl: 'https://x/', download: true, menu: true };
+    const linux = runtimeFilesFor(i18n, 'linux');
+    assert.deepEqual(linux.slice(RUNTIME_FILES.length).sort(), [
+      'i18n.cpp', 'i18n.hpp', 'i18n_common.cpp', 'i18n_linux.cpp', 'i18n_loader.hpp', 'i18n_platform.hpp',
+    ]);
+    assert.ok(!linux.includes('i18n_macos.mm'));
+    assert.ok(runtimeFilesFor(i18n, 'macos').includes('i18n_macos.mm'));
   });
 });
