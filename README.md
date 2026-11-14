@@ -1,6 +1,6 @@
 # forge
 
-Generates tiny native apps from a single source: `app.json` (tokens, window, widgets, CLI commands) and `index.ts` (behavior).
+Generates tiny native apps from a single source: `forge.json` (tokens, window, widgets, CLI commands) and `actions.ts` (behavior).
 v1 target: macOS + CLI, Label and Button only. Linux, Windows and Web come later.
 
 Status: work in progress. The spec validator, the action tracer and the string escaping are done; the generator is next.

@@ -39,7 +39,7 @@ describe('given a widget id that is not a valid C++ identifier', () => {
   }
 });
 
-describe('given a button whose action is not exported by index.ts', () => {
+describe('given a button whose action is not exported by actions.ts', () => {
   it('when validated, then it reports the unknown action', () => {
     const spec = hello();
     (spec.widgets[1] as { action: string }).action = 'missing';
