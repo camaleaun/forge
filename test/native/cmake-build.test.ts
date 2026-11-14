@@ -1,6 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -44,6 +44,18 @@ describe('given a generated hello project on macOS', { skip: !canBuild && 'needs
     const result = spawnSync(binary, ['--greet'], { encoding: 'utf8' });
     assert.equal(result.stdout, 'Hello, world!\n');
     assert.equal(result.status, 0);
+  });
+
+  it('when cpack runs, then a .dmg is produced and hdiutil accepts it', () => {
+    const pack = spawnSync('cpack', ['--config', join(dir, 'build/CPackConfig.cmake'), '-B', join(dir, 'dist')], { encoding: 'utf8', cwd: join(dir, 'build') });
+    assert.equal(pack.status, 0, pack.stdout + pack.stderr);
+    const found = readdirSync(join(dir, 'dist')).filter((file) => file.endsWith('.dmg'));
+    assert.equal(found.length, 1, `expected one .dmg in dist, found: ${readdirSync(join(dir, 'dist')).join(', ')}`);
+    const dmg = join(dir, 'dist', found[0]);
+    console.log(`# hello dmg name: ${found[0]}`);
+    const info = spawnSync('hdiutil', ['imageinfo', dmg], { encoding: 'utf8' });
+    assert.equal(info.status, 0, info.stderr);
+    console.log(`# hello dmg size: ${statSync(dmg).size} bytes`);
   });
 
   it('when its size is measured, then it is under 300 KB', () => {
