@@ -1,9 +1,11 @@
 import { build } from './build.ts';
+import { INFO_FIELDS, info } from './info.ts';
 import { manifest } from './manifest.ts';
 
 const USAGE = `Usage:
   forge build [--project <dir>] [--target macos] --out <dir>
-  forge manifest --dir <dir> --tag <tag> --repo <owner/repo>`;
+  forge manifest --dir <dir> --tag <tag> --repo <owner/repo>
+  forge info [--project <dir>] --field name|version`;
 
 function option(args: string[], name: string, fallback?: string): string | undefined {
   const index = args.indexOf(name);
@@ -29,6 +31,12 @@ if (command === 'manifest') {
   const repo = option(args, '--repo');
   if (!dir || !tag || !repo) usage();
   process.exit(manifest({ dir, tag, repo }));
+}
+
+if (command === 'info') {
+  const field = option(args, '--field');
+  if (!field || !INFO_FIELDS.includes(field)) usage();
+  process.exit(info({ project: option(args, '--project', '.')!, field }));
 }
 
 usage();
