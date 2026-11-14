@@ -179,6 +179,16 @@ describe('given a dev server in LAN mode', () => {
     assert.equal((await get(local() + 'ir.json')).status, 403);
     assert.equal((await get(local() + 'events')).status, 403);
   });
+  it('when the token is missing then the 403 body tells the user to open the URL printed by forge start', async () => {
+    const res = await get(local());
+    assert.match(res.body, /Forbidden/);
+    assert.match(res.body, /URL printed by forge start/);
+    assert.match(res.body, /\?t=/);
+  });
+  it('when the Host header is foreign then the 403 body stays a bare Forbidden', async () => {
+    const res = await get(local(), { Host: 'evil.example' });
+    assert.equal(res.body, 'Forbidden\n');
+  });
   it('when the token is wrong then 403', async () => {
     assert.equal((await get(local() + '?t=nope')).status, 403);
     assert.equal((await get(local(), { Cookie: 'forge_token=nope' })).status, 403);
@@ -188,7 +198,9 @@ describe('given a dev server in LAN mode', () => {
     assert.equal(first.status, 302);
     assert.equal(first.headers.location, '/');
     const cookie = first.headers['set-cookie']![0];
-    assert.equal(cookie, `forge_token=${server.token}; HttpOnly; SameSite=Strict; Path=/`);
+    // Lax, not Strict: opening the URL from another app (a QR scan) is a cross-site navigation, and browsers
+    // do not send Strict cookies on it (nor on its redirect), which made the phone see 403.
+    assert.equal(cookie, `forge_token=${server.token}; HttpOnly; SameSite=Lax; Path=/`);
     const second = await get(local(), { Cookie: cookie.split(';')[0] });
     assert.equal(second.status, 200);
     assert.match(second.body, /Press the button/);

@@ -54,8 +54,8 @@ export async function createDevServer(options: DevServerOptions): Promise<DevSer
   };
 
   const handle = async (req: http.IncomingMessage, res: ServerResponse) => {
-    const deny = () => {
-      res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }).end('Forbidden\n');
+    const deny = (body = 'Forbidden\n') => {
+      res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }).end(body);
     };
     // DNS rebinding guard: only the names and addresses this server is really reachable under.
     if (!allowedHosts.has((req.headers.host ?? '').toLowerCase())) return deny();
@@ -66,13 +66,16 @@ export async function createDevServer(options: DevServerOptions): Promise<DevSer
       if (queryToken !== null && sameToken(queryToken, token)) {
         url.searchParams.delete('t');
         res.writeHead(302, {
-          'set-cookie': `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/`,
+          'set-cookie': `${COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/`,
           location: url.pathname + url.search,
         });
         return res.end();
       }
       const cookie = readCookie(req.headers.cookie, COOKIE);
-      if (cookie === undefined || !sameToken(cookie, token)) return deny();
+      if (cookie === undefined || !sameToken(cookie, token)) {
+        // The token changes on every start: a phone with an old cookie must open the new URL.
+        return deny('Forbidden\n\nOpen the URL printed by forge start (it ends with ?t=<token>). The token changes every time forge start runs.\n');
+      }
     }
 
     if (req.method !== 'GET' && req.method !== 'HEAD') {
