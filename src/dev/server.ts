@@ -18,6 +18,8 @@ export type DevServerOptions = {
   port?: number;
   host?: string;
   lan?: boolean;
+  /** Require a secret token on the network (default true when lan). false = open on the network, no token. */
+  useToken?: boolean;
   token?: string;
 };
 export type DevServer = { url: string; lanUrls: string[]; token?: string; reload(): void; close(): Promise<void> };
@@ -57,7 +59,7 @@ function readCookie(header: string | undefined, name: string): string | undefine
 export async function createDevServer(options: DevServerOptions): Promise<DevServer> {
   const lan = options.lan === true;
   const bindHost = options.host ?? (lan ? '0.0.0.0' : '127.0.0.1');
-  const token = lan ? (options.token ?? randomBytes(16).toString('base64url')) : undefined;
+  const token = lan && options.useToken !== false ? (options.token ?? randomBytes(16).toString('base64url')) : undefined;
   const clients = new Set<ServerResponse>();
   let allowedHosts = new Set<string>();
 
@@ -168,7 +170,7 @@ export async function createDevServer(options: DevServerOptions): Promise<DevSer
     timer = setTimeout(reload, DEBOUNCE_MS);
   });
 
-  const lanUrls = lan ? lanAddresses().map((ip) => `http://${ip}:${port}/?t=${token}`) : [];
+  const lanUrls = lan ? lanAddresses().map((ip) => `http://${ip}:${port}/${token === undefined ? '' : `?t=${token}`}`) : [];
   return {
     url: `http://${bindHost === '0.0.0.0' ? '127.0.0.1' : bindHost}:${port}/`,
     lanUrls,

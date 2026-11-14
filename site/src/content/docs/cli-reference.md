@@ -1,6 +1,6 @@
 ---
 title: CLI reference
-description: "Every forge command: build, start (with --token, --qr and the o, q and h keys), info and manifest."
+description: "Every forge command: build, start (with --local, --token, --qr and the o, q and h keys), info and manifest."
 order: 4
 ---
 
@@ -8,7 +8,7 @@ order: 4
 
 ```text
 forge build [--project <dir>] [--target macos|linux] --out <dir>
-forge start [--project <dir>] [--port 5170] [--token] [--qr]
+forge start [--project <dir>] [--port 5170] [--local] [--token] [--qr]
 forge info  [--project <dir>] --field name|version
 forge manifest --dir <dir> --tag <tag> --repo <owner/repo>
 ```
@@ -32,7 +32,8 @@ Starts the live preview server (default port `5170`). The app is rendered as pla
 | Option | Effect |
 |---|---|
 | `--port <n>` | Port to listen on (0 to 65535). |
-| `--token` | Also share the preview on your local network behind a secret token, so a phone can open it. Without it the preview listens on this machine only (127.0.0.1) and needs no token. |
+| `--local` | Listen on this machine only (127.0.0.1). |
+| `--token` | Require a secret token to open the preview on the network. Without it, anyone on your network can open it. |
 | `--qr` | Print the QR code for the phone URL at startup. |
 
 By default the preview is reachable on your local network, protected by a secret token in the URL. See [Preview on your phone](../preview-on-your-phone/).

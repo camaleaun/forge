@@ -37,7 +37,7 @@ async function visit(url: string): Promise<Response> {
 const TOKEN_URL = /http:\/\/127\.0\.0\.1:(\d+)\/\?t=([A-Za-z0-9_-]{22})/;
 
 describe('given the hello app', () => {
-  it('when running "forge start" with no flags, then the server is local only: a plain URL with no token that serves the page, and no network warning', async () => {
+  it('when running "forge start" with no flags, then the preview is shared on the local network WITHOUT a token: plain URLs, a warning, and it serves the page', async () => {
     const run = startForge(['--project', fixture, '--port', '0'], /http:\/\/127\.0\.0\.1:(\d+)\//);
     try {
       const match = await run.found;
@@ -46,7 +46,8 @@ describe('given the hello app', () => {
       assert.equal(response.status, 200);
       assert.ok((await response.text()).includes('Press the button'));
       await new Promise((resolve) => setTimeout(resolve, 200));
-      assert.ok(!/local network/i.test(run.output()));
+      assert.match(run.output(), /local network/i);
+      assert.match(run.output(), /http:\/\/\d+\.\d+\.\d+\.\d+:\d+\/(?!\?t=)|no network/i);
       assert.ok(!run.output().includes('?t='));
     } finally {
       assert.equal(await run.stop(), 0);
@@ -68,7 +69,7 @@ describe('given the hello app', () => {
     }
   });
 
-  it('when running "forge start --token", then it warns that the server is reachable on the local network and prints a tokenized network URL (or says there is no network)', async () => {
+  it('when running "forge start --token", then it warns about the local network and prints a tokenized network URL (or says there is no network)', async () => {
     const run = startForge(['--project', fixture, '--port', '0', '--token'], /Press Ctrl\+C to stop\./);
     try {
       await run.found;
@@ -79,8 +80,8 @@ describe('given the hello app', () => {
     }
   });
 
-  it('when running "forge start --token", then the QR code is not printed on its own (it is shown with the q key)', async () => {
-    const run = startForge(['--project', fixture, '--port', '0', '--token'], /Press Ctrl\+C to stop\./);
+  it('when running "forge start" with no flags, then the QR code is not printed on its own (it is shown with the q key)', async () => {
+    const run = startForge(['--project', fixture, '--port', '0'], /Press Ctrl\+C to stop\./);
     try {
       await run.found;
       assert.ok(!run.output().includes('█'), 'the QR code must not appear until q is pressed');
@@ -89,18 +90,18 @@ describe('given the hello app', () => {
     }
   });
 
-  it('when running "forge start --qr" (it implies --token) and a network exists, then the QR code is printed at startup', async () => {
+  it('when running "forge start --qr" and a network exists, then the QR code is printed at startup', async () => {
     const run = startForge(['--project', fixture, '--port', '0', '--qr'], /Press Ctrl\+C to stop\./);
     try {
       await run.found;
-      const hasNetwork = /http:\/\/\d+\.\d+\.\d+\.\d+:\d+\/\?t=/.test(run.output());
+      const hasNetwork = /http:\/\/\d+\.\d+\.\d+\.\d+:\d+\//.test(run.output());
       assert.equal(run.output().includes('█'), hasNetwork);
     } finally {
       assert.equal(await run.stop(), 0);
     }
   });
 
-  it('when running "forge start --local" (the old spelling of the default), then it is still accepted: local only, no token, no network warning', async () => {
+  it('when running "forge start --local", then the server is local only: no token, no network warning', async () => {
     const run = startForge(['--project', fixture, '--port', '0', '--local'], /http:\/\/127\.0\.0\.1:(\d+)\//);
     try {
       const match = await run.found;
@@ -123,6 +124,21 @@ describe('given a project that does not build', () => {
       assert.ok(html.includes('package.json: cannot read it'));
     } finally {
       assert.equal(await run.stop(), 0);
+    }
+  });
+});
+
+describe('given a folder that is not an app', () => {
+  it('when running "forge start" there, then the terminal says so and suggests --project (not only the browser page)', async () => {
+    const empty = mkdtempSync(join(tmpdir(), 'forge-start-empty-'));
+    const run = startForge(['--project', empty, '--port', '0', '--local'], /Press Ctrl\+C to stop\./);
+    try {
+      await run.found;
+      assert.match(run.output(), /no App\.tsx in /);
+      assert.match(run.output(), /forge start --project <app folder>/);
+    } finally {
+      assert.equal(await run.stop(), 0);
+      rmSync(empty, { recursive: true, force: true });
     }
   });
 });

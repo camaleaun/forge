@@ -224,6 +224,23 @@ describe('given a dev server in LAN mode', () => {
   });
 });
 
+describe('given the network preview without a token (useToken: false)', () => {
+  it('when lan is on and useToken is false, then there is no token, network URLs are plain and requests are served; foreign Host headers are still refused', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'forge-dev-open-'));
+    const open = await createDevServer({ projectDir: dir, load: async () => ({ ir: helloIr(), errors: [] }), port: 0, lan: true, useToken: false });
+    try {
+      assert.equal(open.token, undefined);
+      assert.ok(open.lanUrls.every((url) => !url.includes('?t=')));
+      const base = `http://127.0.0.1:${new URL(open.url).port}/`;
+      assert.equal((await get(base)).status, 200);
+      assert.equal((await get(base, { Host: 'evil.example' })).status, 403);
+    } finally {
+      await open.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('given close()', () => {
   it('when closing with an open SSE connection then it resolves and the port is released', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'forge-dev-close-'));
