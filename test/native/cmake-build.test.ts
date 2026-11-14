@@ -64,3 +64,19 @@ describe('given a generated hello project on macOS', { skip: !canBuild && 'needs
     assert.ok(size < MAX_BINARY_BYTES, `${size} bytes is not under ${MAX_BINARY_BYTES}`);
   });
 });
+
+describe('given a generated project with a prerelease version', { skip: !canBuild && 'needs macOS and cmake' }, () => {
+  it('when cmake configures it, then it succeeds (project(VERSION) takes only the numeric part)', () => {
+    const spec = hello();
+    spec.app.version = '0.1.0-rc.1';
+    const project = mkdtempSync(join(tmpdir(), 'forge-rc-'));
+    try {
+      writeFileSync(join(project, 'CMakeLists.txt'), generateCmake(spec));
+      for (const file of ['main.cpp', 'actions.cpp', 'cli_router.cpp', 'ui_macos.mm', 'cli_surface.hpp', 'forge_app.hpp']) writeFileSync(join(project, file), '');
+      const configure = spawnSync('cmake', ['-S', project, '-B', join(project, 'build'), '-G', 'Unix Makefiles'], { encoding: 'utf8' });
+      assert.equal(configure.status, 0, configure.stdout + configure.stderr);
+    } finally {
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
