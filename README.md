@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/forge-icon.svg" alt="forge icon" width="128"></p>
+
 # forge
 
 Tiny native apps from a web-like source: TSX for the markup, CSS for the look, TypeScript for the behavior.

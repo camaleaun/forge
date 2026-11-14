@@ -89,3 +89,30 @@ describe('given an app edited between two builds', () => {
       assert.equal(second.ir?.root.children[1].style.width, 140);
     }));
 });
+
+const ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#f00"/></svg>';
+
+describe('given an app with an icon.svg next to App.tsx', () => {
+  it('when building the project IR, then the IR records the icon and the SVG source is returned for the build', () =>
+    withCopy(async (dir) => {
+      writeFileSync(join(dir, 'icon.svg'), ICON);
+      const { ir, errors, iconSvg } = await buildProjectIr(dir);
+      assert.deepEqual(errors, []);
+      assert.equal(ir?.app.icon, 'AppIcon.icns');
+      assert.equal(iconSvg, ICON);
+    }));
+
+  it('when there is no icon.svg, then the IR has no icon and no SVG is returned', async () => {
+    const { ir, iconSvg } = await buildProjectIr(fixture);
+    assert.equal(ir?.app.icon, undefined);
+    assert.equal(iconSvg, undefined);
+  });
+
+  it('when icon.svg uses something the rasterizer does not support, then the build reports it with icon.svg:line:column', () =>
+    withCopy(async (dir) => {
+      writeFileSync(join(dir, 'icon.svg'), '<svg viewBox="0 0 10 10">\n  <text>hi</text>\n</svg>');
+      const { ir, errors } = await buildProjectIr(dir);
+      assert.equal(ir, undefined);
+      assert.match(errors[0], /^icon\.svg:2:3: unsupported element <text>/);
+    }));
+});

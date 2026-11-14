@@ -1,11 +1,15 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { parseSvg } from '../icon/svg.ts';
 import { buildIr } from '../ir/build.ts';
 import type { Ir } from '../ir/types.ts';
 import { loadProject } from './load.ts';
 import { applyStyles, parseStyles } from './styles.ts';
 
 // Loads the app in `dir` and returns its IR (with resolved styles) or every error found.
-export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: string[] }> {
+export const ICON_FILE = 'AppIcon.icns';
+
+export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: string[]; iconSvg?: string }> {
   let project;
   try {
     project = await loadProject(dir);
@@ -17,5 +21,18 @@ export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: st
   const errors = [...built.errors, ...css.errors];
   if (!built.ir) return { errors };
   errors.push(...applyStyles(built.ir, css.rules, 'App.css'));
-  return errors.length > 0 ? { errors } : { ir: built.ir, errors };
+
+  // An optional icon.svg next to App.tsx becomes the app icon (AppIcon.icns).
+  const iconPath = join(resolve(dir), 'icon.svg');
+  let iconSvg: string | undefined;
+  if (existsSync(iconPath)) {
+    iconSvg = readFileSync(iconPath, 'utf8');
+    try {
+      parseSvg(iconSvg, { file: 'icon.svg' });
+      built.ir.app.icon = ICON_FILE;
+    } catch (error) {
+      errors.push((error as Error).message);
+    }
+  }
+  return errors.length > 0 ? { errors } : { ir: built.ir, errors, iconSvg };
 }

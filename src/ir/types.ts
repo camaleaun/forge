@@ -19,7 +19,7 @@ export type Node = {
 
 export type Ir = {
   irVersion: 1;
-  app: { name: string; version: string };
+  app: { name: string; version: string; icon?: string };
   root: Node;
   states: { id: string; initial: string }[];
   handlers: { id: string; effects: Effect[] }[];
