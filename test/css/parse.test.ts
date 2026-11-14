@@ -203,7 +203,7 @@ describe('given a stylesheet with several problems', () => {
     ].join('\n');
     const { rules, errors } = parseCss(source, 'App.css');
     assert.equal(errors.length, 5);
-    assert.deepEqual(errors.map((e) => e.split(': ')[0]), ['App.css:1:1', 'App.css:3:3', 'App.css:4:12', 'App.css:7:1', 'App.css:8:1']);
+    assert.deepEqual(errors.map((e) => e.split(': ')[0]), ['App.css:1:1', 'App.css:3:3', 'App.css:4:12', 'App.css:7:1', 'App.css:8:8']);
     const window = rules.find((r) => r.selectors.some((s) => s.name === 'window'));
     assert.deepEqual(window?.declarations, [{ property: 'gap', value: 8, loc: [5, 3] }]);
   });
@@ -265,9 +265,60 @@ describe('given @only and @except blocks', () => {
   it('when the block is not closed, then it is reported', () => {
     assert.deepEqual(parseCss('@only macos { window { gap: 4px }', 'App.css').errors, ['App.css:1:13: unclosed block, expected "}"']);
   });
+});
 
-  it('when @media is used, then it says it comes next', () => {
-    assert.deepEqual(parseCss('@media (min-width: 600px) { window { gap: 4px } }', 'App.css').errors,
-      ['App.css:1:1: @media is not supported yet: it comes next']);
+describe('given @media blocks', () => {
+  const rulesOf = (css: string) => parseCss(css, 'App.css');
+  it('when a rule sits in @media (min-width: 600px), then it carries that query as a condition', () => {
+    const { rules, errors } = rulesOf('@media (min-width: 600px) { window { gap: 4px } }');
+    assert.deepEqual(errors, []);
+    assert.deepEqual(rules[0].conditions, [{ kind: 'media', query: { minWidth: 600 } }]);
+    assert.deepEqual(rules[0].declarations.map((d) => d.property), ['gap']);
+  });
+  it('when conditions are joined by and, then every one of the four features is read', () => {
+    const { rules, errors } = rulesOf('@media (min-width: 400px) and (max-width: 800px) and (min-height:100px) and ( max-height : 300px ) { text { font-size: 14px } }');
+    assert.deepEqual(errors, []);
+    assert.deepEqual(rules[0].conditions, [{ kind: 'media', query: { minWidth: 400, maxWidth: 800, minHeight: 100, maxHeight: 300 } }]);
+  });
+  it('when a block has several rules, then each keeps source order across and outside the @media', () => {
+    const { rules } = rulesOf('window { gap: 1px }\n@media (max-width: 500px) {\n  window { gap: 2px }\n  text { font-size: 12px }\n}\ntext { font-size: 16px }');
+    assert.deepEqual(rules.map((r) => r.order), [0, 1, 2, 3]);
+    assert.deepEqual(rules.map((r) => r.conditions?.length ?? 0), [0, 1, 1, 0]);
+  });
+  it('when @media sits inside @only (or the other way round), then both conditions are kept in nesting order', () => {
+    const inner = rulesOf('@only macos { @media (min-width: 300px) { window { gap: 2px } } }').rules[0];
+    assert.deepEqual(inner.conditions, [{ kind: 'target', mode: 'only', targets: ['macos'] }, { kind: 'media', query: { minWidth: 300 } }]);
+    const outer = rulesOf('@media (min-width: 300px) { @except web { window { gap: 2px } } }').rules[0];
+    assert.deepEqual(outer.conditions, [{ kind: 'media', query: { minWidth: 300 } }, { kind: 'target', mode: 'except', targets: ['web'] }]);
+  });
+  const bad: [string, string, string][] = [
+    ['a media type', '@media print { window { gap: 1px } }', 'App.css:1:8: unsupported media condition "print": only (min-width | max-width | min-height | max-height: <n>px), joined by "and", are supported'],
+    ['another feature', '@media (orientation: landscape) { window { gap: 1px } }', 'App.css:1:8: unsupported media condition "(orientation: landscape)": only (min-width | max-width | min-height | max-height: <n>px), joined by "and", are supported'],
+    ['or', '@media (min-width: 300px) or (max-width: 100px) { window { gap: 1px } }', 'App.css:1:8: unsupported media condition "(min-width: 300px) or (max-width: 100px)": only (min-width | max-width | min-height | max-height: <n>px), joined by "and", are supported'],
+    ['em units', '@media (min-width: 40em) { window { gap: 1px } }', 'App.css:1:8: invalid value "40em" for "min-width": expected px'],
+    ['a feature without a value', '@media (min-width) { window { gap: 1px } }', 'App.css:1:8: unsupported media condition "(min-width)": only (min-width | max-width | min-height | max-height: <n>px), joined by "and", are supported'],
+    ['no condition', '@media { window { gap: 1px } }', 'App.css:1:1: @media needs a condition, e.g. @media (min-width: 600px)'],
+    ['a repeated feature', '@media (min-width: 1px) and (min-width: 2px) { window { gap: 1px } }', 'App.css:1:29: "min-width" is given twice in one @media'],
+    ['a nested @media', '@media (min-width: 1px) {\n  @media (max-width: 9px) { window { gap: 1px } }\n}', 'App.css:2:3: @media cannot be nested inside @media'],
+    ['no block', '@media (min-width: 1px);', 'App.css:1:1: @media needs a { ... } block'],
+  ];
+  for (const [name, css, message] of bad) {
+    it(`when the condition is ${name}, then the error is ${message.split(': ').slice(1).join(': ').slice(0, 40)}...`, () => {
+      assert.deepEqual(rulesOf(css).errors, [message]);
+    });
+  }
+  it('when justify-content or align-items is inside @media, then each is an error that explains why', () => {
+    const { rules, errors } = rulesOf('@media (min-width: 1px) {\n  window { justify-content: center; align-items: start; gap: 2px }\n}');
+    assert.deepEqual(errors, [
+      'App.css:2:12: "justify-content" is not supported inside @media in v1: it changes how the widgets are built, so it cannot follow the window size (set it outside @media)',
+      'App.css:2:37: "align-items" is not supported inside @media in v1: it changes how the widgets are built, so it cannot follow the window size (set it outside @media)',
+    ]);
+    assert.deepEqual(rules[0].declarations.map((d) => d.property), ['gap']);
+  });
+  it('when the same properties are outside @media, then they are fine', () => {
+    assert.deepEqual(rulesOf('window { justify-content: center; align-items: start }').errors, []);
+  });
+  it('when the block is not closed, then it is reported', () => {
+    assert.deepEqual(rulesOf('@media (min-width: 1px) { window { gap: 4px }').errors, ['App.css:1:25: unclosed block, expected "}"']);
   });
 });

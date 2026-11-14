@@ -27,8 +27,10 @@ export function applyStyles(ir: Ir, allRules: Rule[], file: string, target: stri
   const rules = allRules.filter((rule) => appliesTo(rule, target));
   const errors: string[] = [];
   const visit = (node: Node) => {
-    const { style, errors: nodeErrors } = resolveStyle(node.kind, { classes: node.classes, id: node.id }, rules, file);
+    const { style, variants, errors: nodeErrors } = resolveStyle(node.kind, { classes: node.classes, id: node.id }, rules, file);
     node.style = style;
+    if (variants.length > 0) node.variants = variants;
+    else delete node.variants;
     errors.push(...nodeErrors);
     node.children.forEach(visit);
   };

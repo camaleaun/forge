@@ -1,14 +1,15 @@
-import { ELEMENT_KINDS, PROPERTIES } from './properties.ts';
+import { ELEMENT_KINDS, PROPERTIES, parsePx } from './properties.ts';
 import type { StyleValue } from './properties.ts';
 import { TARGET_LIST, isTarget } from '../ir/targets.ts';
 import type { Target } from '../ir/targets.ts';
+import type { MediaQuery } from '../ir/types.ts';
 
 export type { StyleValue };
 export type Loc = [line: number, column: number];
 export type Selector = { kind: 'type' | 'class' | 'id'; name: string; loc: Loc };
 export type Declaration = { property: string; value: StyleValue; loc: Loc };
-// Conditions a rule sits under. Only target conditions exist today; @media (U4) adds a `media` kind here.
-export type Condition = { kind: 'target'; mode: 'only' | 'except'; targets: Target[] };
+// Conditions a rule sits under: a target (@only/@except) or a window size (@media), in nesting order.
+export type Condition = { kind: 'target'; mode: 'only' | 'except'; targets: Target[] } | { kind: 'media'; query: MediaQuery };
 export type Rule = { selectors: Selector[]; declarations: Declaration[]; order: number; conditions?: Condition[] };
 
 /** Replaces comments with spaces (newlines kept) so offsets and positions stay valid. */
@@ -20,11 +21,12 @@ function blankComments(source: string, onUnterminated: (offset: number) => void)
 }
 
 // One entry per supported at-rule. `condition` parses the prelude (the text between the name and "{")
-// into a Condition and reports its own errors; U4 adds `media` here without touching the block parser.
-type AtRule = { condition: (prelude: string, preludeAt: number, at: number, fail: (offset: number, message: string) => void) => Condition | undefined };
+// into a Condition and reports its own errors. An at-rule cannot sit inside one of its own kind.
+type AtRule = { kind: Condition['kind']; condition: (prelude: string, preludeAt: number, at: number, fail: (offset: number, message: string) => void) => Condition | undefined };
 
 function targetRule(mode: 'only' | 'except'): AtRule {
   return {
+    kind: 'target',
     condition: (prelude, preludeAt, at, fail) => {
       const names = [...prelude.matchAll(/\S+/g)];
       if (names.length === 0) {
@@ -45,9 +47,51 @@ function targetRule(mode: 'only' | 'except'): AtRule {
   };
 }
 
-const AT_RULES: Record<string, AtRule> = { only: targetRule('only'), except: targetRule('except') };
-// At-rules that are planned: rejected with a pointer instead of "unsupported".
-const PLANNED = new Set(['media']);
+const MEDIA_FEATURES: Record<string, keyof MediaQuery> = { 'min-width': 'minWidth', 'max-width': 'maxWidth', 'min-height': 'minHeight', 'max-height': 'maxHeight' };
+const MEDIA_HELP = 'only (min-width | max-width | min-height | max-height: <n>px), joined by "and", are supported';
+
+// @media (min-width: 600px) and (max-height: 400px): the size of the app window, never the screen.
+const mediaRule: AtRule = {
+  kind: 'media',
+  condition: (prelude, preludeAt, at, fail) => {
+    if (prelude.trim() === '') {
+      fail(at, '@media needs a condition, e.g. @media (min-width: 600px)');
+      return undefined;
+    }
+    const query: MediaQuery = {};
+    let valid = true;
+    // The conditions are joined by the word "and"; offsets keep every error on the column of its own condition.
+    let start = 0;
+    for (const joint of [...prelude.matchAll(/\s+and\s+/g), { index: prelude.length, 0: '' }]) {
+      const part = prelude.slice(start, joint.index);
+      const text = part.trim();
+      const partAt = preludeAt + start + part.indexOf(text);
+      start = joint.index + joint[0].length;
+      const m = /^\(\s*(min-width|max-width|min-height|max-height)\s*:\s*([^)]*?)\s*\)$/.exec(text);
+      if (!m) {
+        fail(partAt, `unsupported media condition "${text}": ${MEDIA_HELP}`);
+        valid = false;
+        continue;
+      }
+      const value = parsePx(m[2]);
+      if (value === undefined) {
+        fail(partAt, `invalid value "${m[2]}" for "${m[1]}": expected px`);
+        valid = false;
+      } else if (MEDIA_FEATURES[m[1]] in query) {
+        fail(partAt, `"${m[1]}" is given twice in one @media`);
+        valid = false;
+      } else {
+        query[MEDIA_FEATURES[m[1]]] = value;
+      }
+    }
+    return valid ? { kind: 'media', query } : undefined;
+  },
+};
+
+const AT_RULES: Record<string, AtRule> = { only: targetRule('only'), except: targetRule('except'), media: mediaRule };
+
+// What @media may not change in v1: these decide which widgets are built, so they cannot follow the window size.
+const STRUCTURAL = new Set(['justify-content', 'align-items']);
 
 export function parseCss(original: string, file: string): { rules: Rule[]; errors: string[] } {
   const rules: Rule[] = [];
@@ -63,6 +107,7 @@ export function parseCss(original: string, file: string): { rules: Rule[]; error
   const source = blankComments(original, (offset) => fail(offset, 'unterminated comment'));
 
   const parseRule = (pos: number, open: number, close: number, conditions: Condition[]): Rule => {
+    const inMedia = conditions.some((c) => c.kind === 'media');
     const selectors: Selector[] = [];
     for (const part of splitWithOffsets(source.slice(pos, open), ',', pos)) {
       const text = part.text.trim();
@@ -98,6 +143,10 @@ export function parseCss(original: string, file: string): { rules: Rule[]; error
         continue;
       }
       const spec = PROPERTIES[property];
+      if (inMedia && STRUCTURAL.has(property)) {
+        fail(propertyAt, `"${property}" is not supported inside @media in v1: it changes how the widgets are built, so it cannot follow the window size (set it outside @media)`);
+        continue;
+      }
       if (!spec) {
         fail(propertyAt, `unknown property "${property}" (supported: ${Object.keys(PROPERTIES).join(', ')})`);
         continue;
@@ -122,7 +171,7 @@ export function parseCss(original: string, file: string): { rules: Rule[]; error
         const end = endOfAtRule(source, pos);
         const spec = AT_RULES[name];
         if (!spec) {
-          fail(nameAt, PLANNED.has(name) ? `@${name} is not supported yet: it comes next` : `unsupported at-rule "@${name}" in v1`);
+          fail(nameAt, `unsupported at-rule "@${name}" in v1`);
           pos = end;
           continue;
         }
@@ -132,9 +181,9 @@ export function parseCss(original: string, file: string): { rules: Rule[]; error
           pos = end;
           continue;
         }
-        const enclosing = conditions.find((c) => c.kind === 'target');
+        const enclosing = conditions.find((c) => c.kind === spec.kind);
         if (enclosing) {
-          fail(nameAt, `@${name} cannot be nested inside @${enclosing.mode}`);
+          fail(nameAt, `@${name} cannot be nested inside @${enclosing.kind === 'media' ? 'media' : enclosing.mode}`);
           pos = end;
           continue;
         }

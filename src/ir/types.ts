@@ -11,6 +11,10 @@ export type Effect = { op: 'set'; state: string; value: TextValue };
 
 export type Loc = [line: number, column: number];
 export type Style = Record<string, string | number | number[]>;
+// A window-size query of @media: every field that is set must hold (px).
+export type MediaQuery = { minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number };
+// The style a node gets while its @media query matches (only what changes), in cascade order: a later one wins.
+export type Variant = { query: MediaQuery; style: Style };
 export type Binding = TextValue | { kind: 'state'; state: string };
 
 export type Node = {
@@ -26,6 +30,8 @@ export type Node = {
   // `source: 'language-download'` shows the language pack download and is hidden when none is running.
   progress?: { value?: number; max?: number; indeterminate?: true; source?: 'language-download' };
   style: Style;
+  // Set only when @media rules match this node: the base style stays in `style`.
+  variants?: Variant[];
   children: Node[];
   loc: Loc;
 };
