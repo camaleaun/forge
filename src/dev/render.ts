@@ -36,13 +36,35 @@ function styleAttr(kind: Node['kind'], style: Style): string {
     decls.push('display:flex');
     if (style.flexDirection === undefined) decls.push('flex-direction:column');
   }
+  decls.push(...declarations(kind, style));
+  if (kind === 'window') decls.push('width:100%', 'min-height:100vh', 'box-sizing:border-box');
+  return decls.length ? ` style="${esc(decls.join(';'))}"` : '';
+}
+
+// Declarations for the entries of a style that are valid CSS; the app window's own size is dropped.
+function declarations(kind: Node['kind'], style: Style, suffix = ''): string[] {
+  const out: string[] = [];
   for (const [key, value] of Object.entries(style)) {
     if (!/^[a-zA-Z]+$/.test(key) || (kind === 'window' && WINDOW_IGNORED.has(key))) continue;
     const css = cssValue(key, value);
-    if (css !== undefined) decls.push(`${cssName(key)}:${css}`);
+    if (css !== undefined) out.push(`${cssName(key)}:${css}${suffix}`);
   }
-  if (kind === 'window') decls.push('width:100%', 'min-height:100vh', 'box-sizing:border-box');
-  return decls.length ? ` style="${esc(decls.join(';'))}"` : '';
+  return out;
+}
+
+const QUERY_FEATURES = [['minWidth', 'min-width'], ['maxWidth', 'max-width'], ['minHeight', 'min-height'], ['maxHeight', 'max-height']] as const;
+
+// @media variants as real CSS: the browser's viewport drives them. The base style is inline, so they use !important;
+// they keep their order, so a later variant still wins over an earlier one.
+function mediaCss(node: Node): string {
+  const selector = node.kind === 'select' ? '#forge-lang' : `#${node.id}`;
+  const own = (node.variants ?? []).flatMap((variant) => {
+    const decls = declarations(node.kind, variant.style, '!important');
+    if (decls.length === 0) return [];
+    const query = QUERY_FEATURES.filter(([key]) => variant.query[key] !== undefined).map(([key, name]) => `(${name}:${variant.query[key]}px)`);
+    return [`@media ${query.join(' and ')}{${selector}{${decls.join(';')}}}`];
+  });
+  return own.join('') + node.children.map(mediaCss).join('');
 }
 
 function languageOptions(languages: string[], auto: boolean): string {
@@ -274,7 +296,8 @@ export function renderPage(ir: Ir, options: { languages?: string[] } = {}): stri
       : '';
   // The app is the page; the language picker and the CLI panel sit below it and never shrink it.
   const tools = select || cli ? `<div id="forge-tools">${select}${cli}</div>` : '';
-  const body = `${card}${tools}`;
+  const media = mediaCss(ir.root);
+  const body = `${media ? `<style id="forge-media">${media}</style>` : ''}${card}${tools}`;
   const json = `<script type="application/json" id="forge-ir">${safeJson({ ...ir, languages, texts })}</script>`;
   return document_(ir.root.title ? textOf(ir.root.title) : ir.app.name, body + json, APP_SCRIPT);
 }
