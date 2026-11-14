@@ -14,12 +14,14 @@ export type Style = Record<string, string | number | number[]>;
 export type Binding = TextValue | { kind: 'state'; state: string };
 
 export type Node = {
-  kind: 'window' | 'view' | 'text' | 'button';
+  kind: 'window' | 'view' | 'text' | 'button' | 'select';
   id: string;
   classes: string[];
   title?: TextValue;
   content?: Binding;
   on?: { click?: string };
+  // A <select language> dropdown: its options are English plus the available language packs (known at build/runtime).
+  select?: { language: true };
   style: Style;
   children: Node[];
   loc: Loc;

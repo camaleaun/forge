@@ -44,7 +44,7 @@ describe('given an app whose structure is invalid', () => {
   it('when an element is unknown, then it reports the element and the supported ones', () => {
     assert.deepEqual(
       errorsOf(h('window', { 'forge:loc': [1, 1] }, h('div', { 'forge:loc': [3, 7] }))),
-      ['App.tsx:3:7: unknown element <div> (expected window | view | text | button)'],
+      ['App.tsx:3:7: unknown element <div> (expected window | view | text | button | select)'],
     );
   });
 
@@ -179,5 +179,39 @@ describe('given a project that has an i18n folder', () => {
     const { ir } = run(false);
     assert.deepEqual(ir?.root.title, { kind: 'literal', value: 'Hello, forge' });
     assert.deepEqual(ir?.messages, []);
+  });
+});
+
+describe('given a language dropdown', () => {
+  const withSelect = (props: Record<string, unknown>, children: unknown[] = []) => () =>
+    h('window', { 'forge:loc': [1, 1] }, h('select', { 'forge:loc': [2, 3], ...props }, ...children));
+  const run = (tree: () => unknown, translateLiterals = true) => buildIr({ file: 'App.tsx', app, App: tree, translateLiterals });
+
+  it('when <select language /> is used in a project with an i18n folder, then the IR has a select node marked as the language selector', () => {
+    resetStates();
+    const { ir, errors } = run(withSelect({ language: true }));
+    assert.deepEqual(errors, []);
+    const select = ir?.root.children[0];
+    assert.equal(select?.kind, 'select');
+    assert.deepEqual(select?.select, { language: true });
+    assert.deepEqual(select?.children, []);
+    assert.equal(select?.id, 'select_1');
+  });
+
+  it('when the project has no i18n folder, then the build explains that a language dropdown needs one', () => {
+    resetStates();
+    assert.deepEqual(run(withSelect({ language: true }), false).errors,
+      ['App.tsx:2:3: <select language> needs an i18n/ folder with at least one language file']);
+  });
+
+  it('when <select> has no language attribute, then it is reported as unsupported in v1', () => {
+    resetStates();
+    assert.deepEqual(run(withSelect({})).errors, ['App.tsx:2:3: <select> is only supported with the language attribute in v1']);
+  });
+
+  it('when <select language> has children, then it is reported', () => {
+    resetStates();
+    assert.deepEqual(run(withSelect({ language: true }, [h('option', { 'forge:loc': [3, 5] }, 'English')])).errors,
+      ['App.tsx:2:3: <select language> cannot have children: the options are the available languages']);
   });
 });

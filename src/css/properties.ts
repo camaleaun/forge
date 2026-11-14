@@ -1,4 +1,4 @@
-export const ELEMENT_KINDS = ['window', 'view', 'text', 'button'] as const;
+export const ELEMENT_KINDS = ['window', 'view', 'text', 'button', 'select'] as const;
 export type ElementKind = (typeof ELEMENT_KINDS)[number];
 export type StyleValue = number | string | number[];
 
@@ -58,9 +58,9 @@ const color = {
 };
 
 const BOX: ElementKind[] = ['window', 'view'];
-const SIZE: ElementKind[] = ['window', 'view', 'text', 'button'];
+const SIZE: ElementKind[] = ['window', 'view', 'text', 'button', 'select'];
 const TEXT: ElementKind[] = ['text'];
-const TEXT_AND_BUTTON: ElementKind[] = ['text', 'button'];
+const TEXT_AND_BUTTON: ElementKind[] = ['text', 'button', 'select'];
 
 export const PROPERTIES: Record<string, PropertySpec> = {
   'flex-direction': { kinds: BOX, ...keywords('row', 'column') },

@@ -78,3 +78,17 @@ describe('given a matching rule with a property the element kind does not suppor
     ]);
   });
 });
+
+describe('given CSS for the select element', () => {
+  it('when a select has width, height and font size, then it resolves them', () => {
+    const { rules, errors } = parseCss('select { width: 160px; height: 28px; font-size: 14px; }', 'App.css');
+    assert.deepEqual(errors, []);
+    assert.deepEqual(resolveStyle('select', { classes: [] }, rules, 'App.css').style, { width: 160, height: 28, fontSize: 14 });
+  });
+
+  it('when a select has a color, then it is reported as unsupported on <select> in v1', () => {
+    const { rules } = parseCss('select { color: #ff0000; }', 'App.css');
+    assert.deepEqual(resolveStyle('select', { classes: [] }, rules, 'App.css').errors,
+      ['App.css:1:10: "color" is not supported on <select> in v1']);
+  });
+});

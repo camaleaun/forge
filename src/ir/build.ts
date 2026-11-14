@@ -18,7 +18,7 @@ export type BuildInput = {
 
 type Handler = () => void;
 
-const KINDS = ['window', 'view', 'text', 'button'];
+const KINDS = ['window', 'view', 'text', 'button', 'select'];
 
 function isVNode(value: unknown): value is VNode {
   return typeof value === 'object' && value !== null && 'type' in value;
@@ -101,7 +101,12 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
       else if (typeof props.onClick === 'function') node.on = { click: handlerFor(props.onClick as Handler) };
       else at(loc, 'onClick must be a function');
     }
-    if (kind === 'text' || kind === 'button') {
+    if (kind === 'select') {
+      if (props.language !== true) at(loc, '<select> is only supported with the language attribute in v1');
+      else if (vnode.children.length > 0) at(loc, '<select language> cannot have children: the options are the available languages');
+      else if (!input.translateLiterals) at(loc, '<select language> needs an i18n/ folder with at least one language file');
+      else node.select = { language: true };
+    } else if (kind === 'text' || kind === 'button') {
       const states = vnode.children.filter((child): child is State => child instanceof State);
       const messages = vnode.children.filter((child): child is Message => child instanceof Message);
       if (states.length > 0 && states.length < vnode.children.length) {
