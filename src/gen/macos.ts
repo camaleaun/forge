@@ -1,8 +1,9 @@
-import type { Ir, Node, Style } from '../ir/types.ts';
+import type { Ir, Node } from '../ir/types.ts';
 import { textOf } from '../ir/text.ts';
 import { cppString, objcString } from './escape.ts';
-import { languageName } from '../i18n/names.ts';
 import type { I18nGenOptions } from './i18n-options.ts';
+import { languageChoices, layoutOf } from './layout.ts';
+import type { LayoutNode } from './layout.ts';
 import { textExpr } from './text-cpp.ts';
 
 const DEFAULT_WIDTH = 320;
@@ -10,9 +11,6 @@ const DEFAULT_HEIGHT = 120;
 const INDENT = '    ';
 
 type Axis = { horizontal: boolean };
-
-const num = (value: unknown): number | undefined => (typeof value === 'number' ? value : undefined);
-const str = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
 
 // '#rrggbbaa' -> an sRGB NSColor expression.
 function colorExpr(hex: string): string {
@@ -25,37 +23,30 @@ function orientation(axis: Axis): string {
   return axis.horizontal ? 'Horizontal' : 'Vertical';
 }
 
-function alignment(style: Style, axis: Axis): string {
-  const names = axis.horizontal
+function alignment(node: LayoutNode): string {
+  const names = node.horizontal
     ? { start: 'Top', center: 'CenterY', end: 'Bottom', stretch: 'Top' }
     : { start: 'Leading', center: 'CenterX', end: 'Trailing', stretch: 'Leading' };
-  return `NSLayoutAttribute${names[(str(style.alignItems) ?? 'stretch') as keyof typeof names]}`;
+  return `NSLayoutAttribute${names[node.align]}`;
 }
 
-function gravity(style: Style, axis: Axis): string {
-  const names = axis.horizontal
+function gravity(node: LayoutNode): string {
+  const names = node.horizontal
     ? { start: 'Leading', center: 'Center', end: 'Trailing' }
     : { start: 'Top', center: 'Center', end: 'Bottom' };
-  return `NSStackViewGravity${names[(str(style.justifyContent) ?? 'start') as keyof typeof names] ?? names.start}`;
+  return `NSStackViewGravity${names[node.justify === 'space-between' ? 'start' : node.justify]}`;
 }
 
-function distribution(node: Node): 'Fill' | 'EqualSpacing' | 'GravityAreas' {
-  if (node.children.some((child) => (num(child.style.flex) ?? 0) > 0)) return 'Fill';
-  return node.style.justifyContent === 'space-between' ? 'EqualSpacing' : 'GravityAreas';
+function distribution(node: LayoutNode): 'Fill' | 'EqualSpacing' | 'GravityAreas' {
+  if (node.children.some((child) => child.grow)) return 'Fill';
+  return node.justify === 'space-between' ? 'EqualSpacing' : 'GravityAreas';
 }
 
-function sizeConstraints(node: Node, v: string): string[] {
+function sizeConstraints(node: LayoutNode, v: string): string[] {
   const lines: string[] = [];
-  const width = num(node.style.width);
-  const height = num(node.style.height);
-  if (width !== undefined) lines.push(`[[[${v} widthAnchor] constraintEqualToConstant:${width}] setActive:YES];`);
-  if (height !== undefined) lines.push(`[[[${v} heightAnchor] constraintEqualToConstant:${height}] setActive:YES];`);
+  if (node.width !== undefined) lines.push(`[[[${v} widthAnchor] constraintEqualToConstant:${node.width}] setActive:YES];`);
+  if (node.height !== undefined) lines.push(`[[[${v} heightAnchor] constraintEqualToConstant:${node.height}] setActive:YES];`);
   return lines;
-}
-
-// English first, then the endonym of every pack (no "Auto": the dropdown shows the language in use).
-function languageChoices(i18n: I18nGenOptions | undefined): [string, string][] {
-  return [['en', 'English'], ...(i18n?.packs ?? []).map((pack): [string, string] => [pack.tag, languageName(pack.tag)])];
 }
 
 function hasSelect(node: Node): boolean {
@@ -84,7 +75,7 @@ class Emitter {
   }
 
   // Emits `text` or `button` content: the initial value, plus a binding when it follows a state.
-  content(node: Node, v: string, isButton: boolean): void {
+  content(node: LayoutNode, v: string, isButton: boolean): void {
     const setter = isButton ? 'setTitle' : 'setStringValue';
     const content = node.content;
     if (this.i18n && content && content.kind !== 'literal') {
@@ -101,9 +92,8 @@ class Emitter {
     }
   }
 
-  font(node: Node, v: string): void {
-    const fontSize = num(node.style.fontSize);
-    const weight = num(node.style.fontWeight);
+  font(node: LayoutNode, v: string): void {
+    const { fontSize, fontWeight: weight } = node.paint;
     if (fontSize === undefined && weight === undefined) return;
     const pointSize = fontSize === undefined ? '[NSFont systemFontSize]' : String(fontSize);
     const fontWeight = weight === 700 ? 'NSFontWeightBold' : 'NSFontWeightRegular';
@@ -111,38 +101,34 @@ class Emitter {
   }
 
   // Adds `node` to `parent`, then emits the constraints that need the shared hierarchy.
-  attach(node: Node, v: string, parent: Node, p: string): void {
-    const axis = { horizontal: parent.style.flexDirection === 'row' };
-    if (distribution(parent) === 'GravityAreas') this.emit(`[${p} addView:${v} inGravity:${gravity(parent.style, axis)}];`);
+  attach(node: LayoutNode, v: string, parent: LayoutNode, p: string): void {
+    const axis = { horizontal: parent.horizontal };
+    if (distribution(parent) === 'GravityAreas') this.emit(`[${p} addView:${v} inGravity:${gravity(parent)}];`);
     else this.emit(`[${p} addArrangedSubview:${v}];`);
 
     for (const line of sizeConstraints(node, v)) this.emit(line);
-    const stretch = (str(parent.style.alignItems) ?? 'stretch') === 'stretch';
-    const crossSize = axis.horizontal ? 'height' : 'width';
-    if (stretch && num(node.style[crossSize]) === undefined) {
-      const padding = (parent.style.padding as number[] | undefined) ?? [0, 0, 0, 0];
-      const inset = axis.horizontal ? padding[0] + padding[2] : padding[1] + padding[3];
-      const constant = inset > 0 ? ` constant:-${inset}` : '';
+    if (node.stretchInset !== undefined) {
+      const crossSize = axis.horizontal ? 'height' : 'width';
+      const constant = node.stretchInset > 0 ? ` constant:-${node.stretchInset}` : '';
       this.emit(`[[[${v} ${crossSize}Anchor] constraintEqualToAnchor:[${p} ${crossSize}Anchor]${constant}] setActive:YES];`);
     }
-    if ((num(node.style.flex) ?? 0) > 0) {
+    if (node.grow) {
       this.emit(`[${v} setContentHuggingPriority:1 forOrientation:NSLayoutConstraintOrientation${orientation(axis)}];`);
     }
   }
 
-  container(node: Node, parent: Node | undefined): void {
+  container(node: LayoutNode, parent: LayoutNode | undefined): void {
     const v = `w_${node.id}`;
-    const axis = { horizontal: node.style.flexDirection === 'row' };
-    const padding = (node.style.padding as number[] | undefined) ?? [0, 0, 0, 0];
+    const axis = { horizontal: node.horizontal };
+    const { padding } = node;
     this.emit(`NSStackView* ${v} = [[NSStackView alloc] init];`);
     this.emit(`[${v} setTranslatesAutoresizingMaskIntoConstraints:NO];`);
     this.emit(`[${v} setOrientation:NSUserInterfaceLayoutOrientation${orientation(axis)}];`);
-    this.emit(`[${v} setSpacing:${num(node.style.gap) ?? 0}];`);
+    this.emit(`[${v} setSpacing:${node.gap}];`);
     this.emit(`[${v} setEdgeInsets:NSEdgeInsetsMake(${padding[0]}, ${padding[3]}, ${padding[2]}, ${padding[1]})];`);
-    this.emit(`[${v} setAlignment:${alignment(node.style, axis)}];`);
+    this.emit(`[${v} setAlignment:${alignment(node)}];`);
     this.emit(`[${v} setDistribution:NSStackViewDistribution${distribution(node)}];`);
-    const background = str(node.style.background);
-    const radius = num(node.style.borderRadius);
+    const { background, radius } = node.paint;
     if (background !== undefined || radius !== undefined) {
       this.emit(`[${v} setWantsLayer:YES];`);
       if (background !== undefined) this.emit(`[[${v} layer] setBackgroundColor:[${colorExpr(background)} CGColor]];`);
@@ -169,22 +155,22 @@ class Emitter {
     }
   }
 
-  text(node: Node, parent: Node): void {
+  text(node: LayoutNode, parent: LayoutNode): void {
     const v = `w_${node.id}`;
     this.emit(`NSTextField* ${v} = [NSTextField labelWithString:@""];`);
     this.font(node, v);
-    const color = str(node.style.color);
+    const { color } = node.paint;
     if (color !== undefined) this.emit(`[${v} setTextColor:${colorExpr(color)}];`);
-    const align = str(node.style.textAlign);
+    const align = node.paint.textAlign;
     if (align !== undefined) this.emit(`[${v} setAlignment:NSTextAlignment${align[0].toUpperCase()}${align.slice(1)}];`);
     this.content(node, v, false);
     this.attach(node, v, parent, `w_${parent.id}`);
   }
 
-  button(node: Node, parent: Node): void {
+  button(node: LayoutNode, parent: LayoutNode): void {
     const v = `w_${node.id}`;
     const tag = this.buttonHandlers.length;
-    this.buttonHandlers.push(node.on?.click);
+    this.buttonHandlers.push(node.handler);
     this.emit(`NSButton* ${v} = [[NSButton alloc] init];`);
     this.emit(`[${v} setBezelStyle:NSBezelStyleRounded];`);
     this.font(node, v);
@@ -194,18 +180,18 @@ class Emitter {
   }
 
   // <select language>: a pop-up of English plus one item per language pack; it follows the active language.
-  select(node: Node, parent: Node): void {
+  select(node: LayoutNode, parent: LayoutNode): void {
     const v = `w_${node.id}`;
     this.emit(`NSPopUpButton* ${v} = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];`);
     this.emit(`[[${v} menu] setAutoenablesItems:NO];`);
     this.font(node, v);
-    for (const [value, name] of languageChoices(this.i18n)) {
+    for (const [value, name] of node.languages ?? []) {
       this.emit(`add_language_item([${v} menu], ${v}, target, ${cppString(value)}, Text(${cppString(name)}));`);
     }
     this.attach(node, v, parent, `w_${parent.id}`);
   }
 
-  node(node: Node, parent: Node | undefined): void {
+  node(node: LayoutNode, parent: LayoutNode | undefined): void {
     if (node.kind === 'select' && parent) this.select(node, parent);
     else if (node.kind === 'text' && parent) this.text(node, parent);
     else if (node.kind === 'button' && parent) this.button(node, parent);
@@ -216,10 +202,11 @@ class Emitter {
 export function generateMacosUi(ir: Ir, i18n?: I18nGenOptions): string {
   const { root } = ir;
   if (hasSelect(root) && (!i18n || i18n.packs.length === 0)) throw new Error('<select language> needs at least one language pack');
-  const width = num(root.style.width) ?? DEFAULT_WIDTH;
-  const height = num(root.style.height) ?? DEFAULT_HEIGHT;
+  const layout = layoutOf(root, languageChoices(i18n));
+  const width = layout.width ?? DEFAULT_WIDTH;
+  const height = layout.height ?? DEFAULT_HEIGHT;
   const emitter = new Emitter(ir, i18n);
-  emitter.node(root, undefined);
+  emitter.node(layout, undefined);
   const cases = emitter.buttonHandlers
     .map((handler, tag) => (handler === undefined ? '' : `    case ${tag}:\n      action_${handler}(g_surface);\n      break;\n`))
     .join('');
