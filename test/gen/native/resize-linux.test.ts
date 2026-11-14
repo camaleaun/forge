@@ -14,16 +14,16 @@ import { resizeIr, stretchIr } from './resize-irs.ts';
 
 const has = (command: string, args: string[]): boolean => spawnSync(command, args).status === 0;
 const gtk = spawnSync('pkg-config', ['--cflags', '--libs', 'gtk4'], { encoding: 'utf8' });
-const canRun = process.platform === 'linux' && has('g++', ['--version']) && gtk.status === 0 && has('xvfb-run', ['--help']);
+const canRun = process.platform === 'linux' && has('g++', ['--version']) && gtk.status === 0 && has('sh', ['-c', 'command -v xvfb-run']);
 const SKIP = 'needs Linux with g++, GTK 4 (pkg-config gtk4) and xvfb-run';
-const canXdotool = has('xdotool', ['version']);
+const canXdotool = has('sh', ['-c', 'command -v xdotool']);
 
 function build(ir: Ir): { dir: string; binary: string } {
   const dir = mkdtempSync(join(tmpdir(), 'forge-gen-resize-linux-'));
   writeProjectFiles(generateProject(ir, 'linux'), dir);
   const binary = join(dir, 'app');
   const result = spawnSync('g++', [
-    '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', dir, '-I', RUNTIME_DIR,
+    '-std=c++20', '-Wall', '-Wextra', '-Werror', '-Wno-unused-function', '-I', dir, '-I', RUNTIME_DIR,
     join(ROOT, 'test/gen/fixtures/ui_resize_driver.cpp'), join(dir, 'ui_linux.cpp'), join(dir, 'actions.cpp'),
     ...gtk.stdout.trim().split(/\s+/), '-o', binary,
   ], { encoding: 'utf8' });
