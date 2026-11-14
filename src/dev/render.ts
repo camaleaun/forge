@@ -26,6 +26,10 @@ function cssValue(key: string, value: string | number | number[]): string | unde
   return SAFE_VALUE.test(out) ? out : undefined;
 }
 
+// The preview is plain HTML in the browser: the app window's own size (width, height, flex) is ignored and
+// the root fills the whole page, so @media and the layout follow the real viewport.
+const WINDOW_IGNORED = new Set(['width', 'height', 'flex']);
+
 function styleAttr(kind: Node['kind'], style: Style): string {
   const decls: string[] = [];
   if (kind === 'window' || kind === 'view') {
@@ -33,11 +37,11 @@ function styleAttr(kind: Node['kind'], style: Style): string {
     if (style.flexDirection === undefined) decls.push('flex-direction:column');
   }
   for (const [key, value] of Object.entries(style)) {
-    if (!/^[a-zA-Z]+$/.test(key)) continue;
+    if (!/^[a-zA-Z]+$/.test(key) || (kind === 'window' && WINDOW_IGNORED.has(key))) continue;
     const css = cssValue(key, value);
     if (css !== undefined) decls.push(`${cssName(key)}:${css}`);
   }
-  if (kind === 'window') decls.push('box-sizing:border-box');
+  if (kind === 'window') decls.push('width:100%', 'min-height:100vh', 'box-sizing:border-box');
   return decls.length ? ` style="${esc(decls.join(';'))}"` : '';
 }
 
@@ -103,9 +107,9 @@ function renderNode(node: Node, ir: Ir, texts: Texts, languages: string[]): stri
 const RELOAD = `try{new EventSource('/events').onmessage=function(e){if(e.data==='reload')location.reload();};}catch(e){}`;
 
 const CSS = `progress[hidden]{display:none}
-body{margin:0;padding:16px;font-family:system-ui,sans-serif;background:#eceff1;color:#222}
-.card{box-shadow:0 2px 12px rgba(0,0,0,.2);background:#fff;overflow:hidden;max-width:100%}
-#forge-cli{margin-top:24px;max-width:480px;font-size:13px}
+body{margin:0;padding:0;font-family:system-ui,sans-serif;background:#fff;color:#222}
+#forge-tools{padding:16px;font-size:13px}
+#forge-cli{max-width:480px}
 #forge-cli button{margin:0 8px 8px 0}
 #forge-cli-out{white-space:pre-wrap;font-family:ui-monospace,monospace;background:#111;color:#8f8;padding:8px;min-height:1em}`;
 
@@ -264,7 +268,9 @@ export function renderPage(ir: Ir, options: { languages?: string[] } = {}): stri
     languages.length && !hasSelect(ir.root)
       ? `<p><select id="forge-lang" data-auto="1" aria-label="Language">${languageOptions(languages, true)}</select></p>`
       : '';
-  const body = `${select}<div class="card" style="width:fit-content;max-width:100%">${card}</div>${cli}`;
+  // The app is the page; the language picker and the CLI panel sit below it and never shrink it.
+  const tools = select || cli ? `<div id="forge-tools">${select}${cli}</div>` : '';
+  const body = `${card}${tools}`;
   const json = `<script type="application/json" id="forge-ir">${safeJson({ ...ir, languages, texts })}</script>`;
   return document_(ir.root.title ? textOf(ir.root.title) : ir.app.name, body + json, APP_SCRIPT);
 }

@@ -19,9 +19,24 @@ describe('given the hello IR', () => {
   it('when rendering then the button is a <button> with its label and click handler', () => {
     assert.match(html, /<button[^>]*data-click="greet"[^>]*>Greet<\/button>/);
   });
-  it('when rendering then the window card maps size, padding, gap and alignment to flexbox CSS', () => {
-    assert.match(html, /width:320px/);
-    assert.match(html, /height:120px/);
+  it('when rendering then the root fills the whole page: full width, at least the viewport height, border-box, and no fixed window size', () => {
+    const root = html.match(/<div id="window_0"[^>]*style="([^"]*)"/)![1];
+    assert.match(root, /(^|;)width:100%(;|$)/);
+    assert.match(root, /(^|;)min-height:100vh(;|$)/);
+    assert.match(root, /box-sizing:border-box/);
+    assert.doesNotMatch(root, /320px|(^|;)height:/);
+  });
+  it('when rendering then there is no fixed-size card and the body has no margin or padding', () => {
+    assert.doesNotMatch(html, /class="card"|\.card\{|fit-content/);
+    assert.match(html, /body\{margin:0;padding:0;/);
+  });
+  it('when rendering then the CLI panel comes after the app, outside of it', () => {
+    const tools = html.indexOf('<div id="forge-tools">');
+    assert.ok(tools > html.indexOf('id="window_0"'));
+    assert.equal(html.slice(tools - 6, tools), '</div>', 'the app root is closed before the tools');
+    assert.ok(html.indexOf('id="forge-cli"') > tools);
+  });
+  it('when rendering then the window maps padding, gap and alignment to flexbox CSS', () => {
     assert.match(html, /padding:20px 20px 20px 20px/);
     assert.match(html, /gap:12px/);
     assert.match(html, /display:flex/);
@@ -160,9 +175,9 @@ describe('given an IR with a <select language /> node', () => {
     return ir;
   };
   const markup = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, '');
-  it('when rendering then the select is in place inside the card with the node style and id forge-lang', () => {
+  it('when rendering then the select is in place inside the app root with the node style and id forge-lang', () => {
     const html = markup(renderPage(withSelect(), { languages: ['pt-BR'] }));
-    const card = html.match(/<div class="card"[\s\S]*<\/div>/)![0];
+    const card = html.match(/<div id="window_0"[\s\S]*<\/div>/)![0];
     assert.match(card, /<select id="forge-lang" class="lang" style="[^"]*width:160px[^"]*font-size:14px[^"]*">/);
   });
   it('when rendering then the options are English plus each language, with no Auto', () => {
