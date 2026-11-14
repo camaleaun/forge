@@ -69,9 +69,22 @@ describe('given an app with mistakes', () => {
     try {
       assert.match((await buildProjectIr(empty)).errors[0], /^package\.json: cannot read it/);
       writeFileSync(join(empty, 'package.json'), JSON.stringify({ name: 'x', version: '0.1.0' }));
-      assert.deepEqual((await buildProjectIr(empty)).errors, ['App.tsx: the app entry file was not found']);
+      assert.deepEqual((await buildProjectIr(empty)).errors, ['App.tsx: the app entry file was not found in this folder (run forge inside an app folder, or pass --project <dir>)']);
     } finally {
       rmSync(empty, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('given a folder that is not an app', () => {
+  it('when package.json has no version and there is no App.tsx (for example the forge repository itself), then the error says it is not an app folder', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'forge-notapp-'));
+    try {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'forge', private: true }));
+      const { errors } = await buildProjectIr(dir);
+      assert.deepEqual(errors, ['App.tsx: the app entry file was not found in this folder (run forge inside an app folder, or pass --project <dir>)']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

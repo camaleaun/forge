@@ -21,11 +21,12 @@ export async function loadProject(dir: string): Promise<LoadedProject> {
   } catch (error) {
     throw new Error(`package.json: cannot read it (${(error as Error).message})`);
   }
+  // A folder without App.tsx is not an app (for example the forge repository itself): say so before judging package.json.
+  const entry = join(root, 'App.tsx');
+  if (!existsSync(entry)) throw new Error('App.tsx: the app entry file was not found in this folder (run forge inside an app folder, or pass --project <dir>)');
   if (typeof pkg.name !== 'string' || typeof pkg.version !== 'string') {
     throw new Error('package.json: "name" and "version" must be strings');
   }
-  const entry = join(root, 'App.tsx');
-  if (!existsSync(entry)) throw new Error('App.tsx: the app entry file was not found');
 
   registerForgeHooks();
   resetStates();
