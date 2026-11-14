@@ -36,7 +36,7 @@ Specificity is `#id` over `.class` over element; for equal specificity the later
 | `flex` | a number (grow factor) | window, view, text, button, select, progress |
 | `background` | color | window, view |
 | `border-radius` | px | window, view |
-| `color` | color | text, progress |
+| `color` | color | text, progress (on a progress bar: the fill; macOS keeps the system accent colour) |
 | `font-size` | px | text, button |
 | `font-weight` | `normal`, `bold`, `400`, `700` | text, button |
 | `text-align` | `left`, `center`, `right` | text |
