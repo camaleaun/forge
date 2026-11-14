@@ -81,6 +81,8 @@ export function buildApp(ir: Ir, options: I18nGenOptions, uiStub = 'ui_stub.cpp'
     [join(RUNTIME_DIR, 'i18n.cpp'), []],
     [join(RUNTIME_DIR, 'i18n_common.cpp'), []],
     onLinux ? [join(RUNTIME_DIR, 'i18n_linux.cpp'), pkgConfig('--cflags')] : [join(RUNTIME_DIR, 'i18n_macos.mm'), ['-fobjc-arc']],
+    [join(RUNTIME_DIR, 'http_common.cpp'), []],
+    onLinux ? [join(RUNTIME_DIR, 'http_linux.cpp'), pkgConfig('--cflags')] : [join(RUNTIME_DIR, 'http_macos.mm'), ['-fobjc-arc']],
     [join(ROOT, 'test/gen/fixtures', uiStub), onLinux ? pkgConfig('--cflags') : []],
   ];
   const objects: string[] = [];

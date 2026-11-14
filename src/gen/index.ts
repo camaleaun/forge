@@ -27,10 +27,13 @@ import { generateSnapcraft } from './snap.ts';
 export const TARGETS = ['macos', 'linux'];
 // Hand-written runtime sources that the build copies next to the generated files.
 export const RUNTIME_FILES = ['main.cpp', 'cli_surface.hpp'];
+// forge::remote (the HTTP layer) is copied only for apps that use it: today those with language packs.
+export const HTTP_RUNTIME_FILES_MACOS = ['http.hpp', 'http_adapter.hpp', 'http_common.cpp', 'http_macos.mm'];
+export const HTTP_RUNTIME_FILES_LINUX = ['http.hpp', 'http_adapter.hpp', 'http_common.cpp', 'http_linux.cpp'];
 // The i18n runtime is copied only for apps that have language packs.
-export const I18N_RUNTIME_FILES = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_platform.hpp', 'i18n_macos.mm'];
+export const I18N_RUNTIME_FILES = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_platform.hpp', 'i18n_macos.mm', ...HTTP_RUNTIME_FILES_MACOS];
 // Linux shares the loader core and swaps the platform adapter (i18n_platform.hpp is its interface).
-export const I18N_RUNTIME_FILES_LINUX = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_platform.hpp', 'i18n_linux.cpp'];
+export const I18N_RUNTIME_FILES_LINUX = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_platform.hpp', 'i18n_linux.cpp', ...HTTP_RUNTIME_FILES_LINUX];
 export function hasPacks(i18n: I18nGenOptions | undefined): i18n is I18nGenOptions {
   return i18n !== undefined && i18n.packs.length > 0;
 }

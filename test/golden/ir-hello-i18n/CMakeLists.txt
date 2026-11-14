@@ -27,7 +27,9 @@ add_executable(hello MACOSX_BUNDLE
   messages.cpp
   i18n.cpp
   i18n_common.cpp
-  i18n_macos.mm)
+  i18n_macos.mm
+  http_common.cpp
+  http_macos.mm)
 
 target_compile_options(hello PRIVATE
   -Oz -fno-exceptions -fno-rtti -Wall -Wextra

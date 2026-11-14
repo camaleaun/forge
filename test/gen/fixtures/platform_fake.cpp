@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "i18n_loader.hpp"
+#include "http_adapter.hpp"
 #include "i18n_platform.hpp"
 
 namespace {
@@ -56,49 +57,42 @@ void write_setting(const char* key, const std::string& value) {
 std::vector<std::string> system_languages() { return g_system_languages; }
 std::string cache_base() { return g_cache_base; }
 
-bool http_get(const std::string& url, std::size_t max_bytes, int, int, UrlAllowed allowed, Http& out, Progress progress, void* context) {
-  g_urls.push_back(url);
-  if (g_http_mode == "fail") {
-    out.error = "connection refused";
-    return false;
-  }
-  if (g_http_mode == "redirect-http") {
-    const std::string hop = "http://evil.example/pack.lang";
-    g_hops.push_back(hop);
-    if (!allowed(hop)) {
-      out.status = 302;  // the redirect is not followed: the 3xx is the answer
-      return true;
-    }
-  }
-  if (g_http_mode == "status404") {
-    out.status = 404;
-    return true;
-  }
-  out.status = 200;
-  out.body = slurp(g_pack_path);
-  if (progress) {  // 0, 50% and 100% of the body; "nolength" reports no total, like a missing Content-Length
-    const std::size_t total = g_http_mode == "nolength" ? 0 : out.body.size();
-    progress(context, 0, total);
-    progress(context, out.body.size() / 2, total);
-    if (g_http_mode == "failhalf") {
-      out.error = "connection reset";
-      return false;
-    }
-    progress(context, out.body.size(), total);
-  }
-  if (out.body.size() > max_bytes) {
-    out.error = "the downloaded pack has an unexpected size";
-    return false;
-  }
-  return true;
-}
-
 void post_to_main(void (*fn)(void*), void* context) { g_posts.push_back({fn, nullptr, context}); }
 
 // The "main thread" is the driver: jobs run when it says `pump`.
 void run_in_background(void (*work)(void*), void (*done)(void*), void* context) { g_jobs.push_back({work, done, context}); }
 
 }  // namespace forge_app::platform
+
+// The fake sits under the real HTTP policy (http_common.cpp): it only plays the server, one exchange at a time.
+namespace forge::remote::adapter {
+
+Error exchange(const Exchange& ex) {
+  g_urls.push_back(*ex.url);
+  if (g_http_mode == "fail") return {"network", "connection refused"};
+  if (g_http_mode == "timeout") return {"timeout", "timed out"};
+  if (g_http_mode == "redirect-http") {
+    const std::string hop = "http://evil.example/pack.lang";
+    g_hops.push_back(hop);
+    ex.on_head(ex.context, 302, "", {{"Location", hop}});  // the policy refuses the hop: the 3xx is the answer
+    return {};
+  }
+  if (g_http_mode == "status404") {
+    ex.on_head(ex.context, 404, "", {});
+    return {};
+  }
+  const std::string body = slurp(g_pack_path);
+  std::vector<Header> headers;
+  if (g_http_mode != "nolength") headers.push_back({"Content-Length", std::to_string(body.size())});
+  if (!ex.on_head(ex.context, 200, "", headers)) return {};
+  // The body arrives in two halves: 50% and 100%.
+  if (!ex.on_data(ex.context, body.data(), body.size() / 2)) return {};
+  if (g_http_mode == "failhalf") return {"network", "connection reset"};
+  ex.on_data(ex.context, body.data() + body.size() / 2, body.size() - body.size() / 2);
+  return {};
+}
+
+}  // namespace forge::remote::adapter
 
 namespace {
 

@@ -30,7 +30,7 @@ describe('given the portable language loader and a fake platform adapter', { ski
     dir = mkdtempSync(join(tmpdir(), 'forge-i18n-common-'));
     writeProjectFiles(generateProject(pluralIr(), 'macos', { i18n: optionsFor() }), dir);
     const flags = ['-std=c++20', '-Wall', '-Wextra', '-Werror', '-fno-exceptions', '-fno-rtti', '-I', dir, '-I', RUNTIME_DIR];
-    const sources = [join(dir, 'messages.cpp'), join(RUNTIME_DIR, 'i18n.cpp'), join(RUNTIME_DIR, 'i18n_common.cpp'), join(ROOT, 'test/gen/fixtures/platform_fake.cpp')];
+    const sources = [join(dir, 'messages.cpp'), join(RUNTIME_DIR, 'i18n.cpp'), join(RUNTIME_DIR, 'i18n_common.cpp'), join(RUNTIME_DIR, 'http_common.cpp'), join(ROOT, 'test/gen/fixtures/platform_fake.cpp')];
     driver = join(dir, 'driver');
     const built = spawnSync(compiler as string, [...flags, ...sources, '-o', driver], { encoding: 'utf8' });
     assert.equal(built.status, 0, built.stderr);

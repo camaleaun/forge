@@ -42,7 +42,7 @@ describe('given an app with language packs', () => {
   const cmake = generateCmakeLinux(helloIr(), true);
   it('when generating, then libsoup 3 is required and the loader sources are compiled', () => {
     assert.ok(cmake.includes('pkg_check_modules(SOUP3 REQUIRED IMPORTED_TARGET libsoup-3.0)'));
-    for (const file of ['messages.cpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_linux.cpp']) assert.ok(cmake.includes(`  ${file}`), file);
+    for (const file of ['messages.cpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_linux.cpp', 'http_common.cpp', 'http_linux.cpp']) assert.ok(cmake.includes(`  ${file}`), file);
     assert.ok(cmake.includes('PkgConfig::SOUP3'));
   });
 });

@@ -16,6 +16,7 @@
 
 #include "i18n.hpp"
 #include "i18n_loader.hpp"
+#include "http.hpp"
 #include "i18n_platform.hpp"
 
 namespace forge_app {
@@ -192,7 +193,7 @@ bool store_in_cache(const PackDef& pack, const std::string& bytes) {
 }
 
 // One blocking GET. Accepts only 200 with exactly the expected size and the pinned sha256.
-bool download_pack(const PackDef& pack, std::string& error, platform::Progress progress = nullptr, void* context = nullptr) {
+bool download_pack(const PackDef& pack, std::string& error, forge::remote::Progress progress = nullptr, void* context = nullptr) {
   std::string base = env_string("FORGE_I18N_BASE_URL");
   if (base.empty()) base = PACK_BASE_URL;
   const std::string url = base + pack.file;
@@ -203,25 +204,33 @@ bool download_pack(const PackDef& pack, std::string& error, platform::Progress p
   int request_ms = 10000, resource_ms = 30000;
   const std::string timeout_ms = env_string("FORGE_I18N_TIMEOUT_MS");
   if (!timeout_ms.empty()) request_ms = resource_ms = std::atoi(timeout_ms.c_str());
-  platform::Http response;
-  if (!platform::http_get(url, forge_i18n::kMaxPackBytes, request_ms, resource_ms, url_allowed, response, progress, context)) {
-    error = response.error;
+  forge::remote::Args args;
+  args.timeout_ms = request_ms;
+  args.resource_timeout_ms = resource_ms;
+  args.limit_response_size = forge_i18n::kMaxPackBytes;
+  args.allowed = url_allowed;
+  args.progress = progress;
+  args.context = context;
+  const forge::remote::Result response = forge::remote::get(url, args);
+  if (!response.ok()) {
+    const std::string& code = response.error.code;
+    error = code == "too_large" ? "the downloaded pack has an unexpected size" : code == "timeout" ? "the download timed out" : response.error.message;
     return false;
   }
-  if (response.status != 200) {
-    error = "the server answered HTTP " + std::to_string(response.status);
+  if (response.response.code != 200) {
+    error = "the server answered HTTP " + std::to_string(response.response.code);
     return false;
   }
-  if (response.body.size() > forge_i18n::kMaxPackBytes || response.body.size() != pack.size) {
+  if (response.response.body.size() > forge_i18n::kMaxPackBytes || response.response.body.size() != pack.size) {
     error = "the downloaded pack has an unexpected size";
     return false;
   }
   forge_i18n::Pack parsed;
-  if (!verified(pack, response.body, parsed)) {
+  if (!verified(pack, response.response.body, parsed)) {
     error = "the downloaded pack does not match its checksum";
     return false;
   }
-  if (!store_in_cache(pack, response.body)) {
+  if (!store_in_cache(pack, response.response.body)) {
     error = "could not write the language pack to the cache";
     return false;
   }

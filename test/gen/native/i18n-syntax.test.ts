@@ -41,4 +41,9 @@ describe('given the hand-written i18n runtime files', { skip: process.platform !
     assert.equal(result.stderr, '');
     assert.equal(result.status, 0);
   });
+  it('when http_macos.mm is compiled with ARC and the strict flags, then clang accepts it', () => {
+    const result = spawnSync('clang++', [...FLAGS, ...MM_FLAGS, '-I', RUNTIME_DIR, join(RUNTIME_DIR, 'http_macos.mm')], { encoding: 'utf8' });
+    assert.equal(result.stderr, '');
+    assert.equal(result.status, 0);
+  });
 });

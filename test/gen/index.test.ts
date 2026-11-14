@@ -108,9 +108,9 @@ describe('given the runtime file lists per target', () => {
     const i18n = { appId: 'x.y', packs: [{ tag: 'pt-BR', file: 'a.lang', sha256: '0'.repeat(64), size: 1 }], baseUrl: 'https://x/', download: true, menu: true };
     const linux = runtimeFilesFor(i18n, 'linux');
     assert.deepEqual(linux.slice(RUNTIME_FILES.length).sort(), [
-      'i18n.cpp', 'i18n.hpp', 'i18n_common.cpp', 'i18n_linux.cpp', 'i18n_loader.hpp', 'i18n_platform.hpp',
+      'http.hpp', 'http_adapter.hpp', 'http_common.cpp', 'http_linux.cpp', 'i18n.cpp', 'i18n.hpp', 'i18n_common.cpp', 'i18n_linux.cpp', 'i18n_loader.hpp', 'i18n_platform.hpp',
     ]);
-    assert.ok(!linux.includes('i18n_macos.mm'));
+    assert.ok(!linux.includes('i18n_macos.mm') && !linux.includes('http_macos.mm'));
     assert.ok(runtimeFilesFor(i18n, 'macos').includes('i18n_macos.mm'));
   });
 });

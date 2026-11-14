@@ -45,6 +45,7 @@ before(async () => {
   const sources = [
     join(ROOT, `test/gen/fixtures/ui_steps_driver.${onLinux ? 'cpp' : 'mm'}`), join(dir, ui), join(dir, 'actions.cpp'), join(dir, 'cli_router.cpp'), join(dir, 'messages.cpp'),
     join(RUNTIME_DIR, 'i18n.cpp'), join(RUNTIME_DIR, 'i18n_common.cpp'), join(RUNTIME_DIR, onLinux ? 'i18n_linux.cpp' : 'i18n_macos.mm'),
+    join(RUNTIME_DIR, 'http_common.cpp'), join(RUNTIME_DIR, onLinux ? 'http_linux.cpp' : 'http_macos.mm'),
   ];
   binary = join(dir, 'app');
   const result = spawnSync(compiler, [...flags, ...sources, ...(onLinux ? pkg('--libs') : ['-framework', 'Cocoa']), '-o', binary], { encoding: 'utf8' });

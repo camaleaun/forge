@@ -48,6 +48,7 @@ so you can open it on a phone on the same Wi-Fi. The preview is a normal full-pa
 `App.tsx` is transformed by a small dependency-free JSX transformer (loaded with Node module hooks), `App.css` by a CSS-subset parser.
 Both become one IR (`forge start` renders it as HTML, `forge build` turns it into native code). Handlers run once at build time and
 are recorded as effects, so the generated binary carries no JavaScript (hello is about 73 KB).
+Optional C++ runtime libraries are copied into a build only when the app uses them; the first is `forge::remote`, a small blocking HTTP client with fixed security rules (see the Runtime libraries docs).
 
 ## Project rules
 - No npm packages in the tooling or in the generated programs (only the docs site may use Astro later).

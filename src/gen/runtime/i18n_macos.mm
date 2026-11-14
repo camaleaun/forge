@@ -9,57 +9,6 @@
 #include "i18n_loader.hpp"
 #include "i18n_platform.hpp"
 
-namespace {
-forge_app::platform::UrlAllowed g_allowed = nullptr;
-}
-
-// One per download: checks every redirect and collects the body as it arrives, reporting the bytes so far.
-@interface ForgeDownload : NSObject <NSURLSessionDataDelegate> {
- @public
-  NSMutableData* body;
-  NSURLResponse* response;
-  NSError* failure;
-  dispatch_semaphore_t finished;
-  forge_app::platform::Progress progress;
-  void* context;
-  std::size_t maxBytes;
-}
-@end
-
-@implementation ForgeDownload
-- (void)URLSession:(NSURLSession*)session
-                          task:(NSURLSessionTask*)task
-    willPerformHTTPRedirection:(NSHTTPURLResponse*)response
-                    newRequest:(NSURLRequest*)request
-             completionHandler:(void (^)(NSURLRequest*))completionHandler {
-  completionHandler(g_allowed([[[request URL] absoluteString] UTF8String]) ? request : nil);
-}
-
-- (void)URLSession:(NSURLSession*)session
-              dataTask:(NSURLSessionDataTask*)task
-    didReceiveResponse:(NSURLResponse*)reply
-     completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler {
-  response = reply;
-  body = [NSMutableData data];
-  completionHandler(NSURLSessionResponseAllow);
-}
-
-- (void)URLSession:(NSURLSession*)session dataTask:(NSURLSessionDataTask*)task didReceiveData:(NSData*)data {
-  [body appendData:data];
-  if ([body length] > maxBytes) {
-    [task cancel];  // too big: completes with a cancellation, and the caller reports the size
-    return;
-  }
-  const long long expected = [response expectedContentLength];
-  if (progress) progress(context, [body length], expected > 0 ? (std::size_t)expected : 0);
-}
-
-- (void)URLSession:(NSURLSession*)session task:(NSURLSessionTask*)task didCompleteWithError:(NSError*)error {
-  failure = error;
-  dispatch_semaphore_signal(finished);
-}
-@end
-
 namespace forge_app::platform {
 namespace {
 
@@ -100,45 +49,6 @@ std::vector<std::string> system_languages() {
 }
 
 std::string cache_base() { return std::string([NSHomeDirectory() UTF8String]) + "/Library/Application Support/" + APP_ID + "/lang"; }
-
-bool http_get(const std::string& url_text, std::size_t max_bytes, int request_ms, int resource_ms, UrlAllowed allowed, Http& out, Progress progress, void* context) {
-  g_allowed = allowed;
-  NSURL* url = [NSURL URLWithString:[NSString stringWithUTF8String:url_text.c_str()]];
-  if (!url) {
-    out.error = "the URL is not valid";
-    return false;
-  }
-  const double resource_seconds = resource_ms / 1000.0;
-  NSURLSessionConfiguration* config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
-  config.timeoutIntervalForRequest = request_ms / 1000.0;
-  config.timeoutIntervalForResource = resource_seconds;
-  ForgeDownload* download = [[ForgeDownload alloc] init];
-  download->finished = dispatch_semaphore_create(0);
-  download->progress = progress;
-  download->context = context;
-  download->maxBytes = max_bytes;
-  NSURLSession* session = [NSURLSession sessionWithConfiguration:config delegate:download delegateQueue:nil];
-  [[session dataTaskWithURL:url] resume];
-  if (dispatch_semaphore_wait(download->finished, dispatch_time(DISPATCH_TIME_NOW, (int64_t)((resource_seconds + 2) * NSEC_PER_SEC))) != 0) {
-    [session invalidateAndCancel];
-    out.error = "the download timed out";
-    return false;
-  }
-  [session finishTasksAndInvalidate];
-  if ([download->body length] > max_bytes) {
-    out.error = "the downloaded pack has an unexpected size";
-    return false;
-  }
-  if (download->failure) {
-    out.error = [[download->failure localizedDescription] UTF8String];
-    return false;
-  }
-  NSURLResponse* response = download->response;
-  out.status = [response isKindOfClass:[NSHTTPURLResponse class]] ? (long)[(NSHTTPURLResponse*)response statusCode] : 0;
-  if (download->body) out.body.assign(static_cast<const char*>([download->body bytes]), [download->body length]);
-  if (progress) progress(context, out.body.size(), out.body.size());
-  return true;
-}
 
 void post_to_main(void (*fn)(void*), void* context) {
   dispatch_async(dispatch_get_main_queue(), ^{
