@@ -1,0 +1,51 @@
+name: Validate glass icon
+
+# Builds a throwaway Liquid Glass .icon with forge's generator and compiles it with the real actool (Xcode 26).
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  actool:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Show the toolchain
+        run: |
+          xcodebuild -version
+          xcrun actool --version
+      - name: Build a throwaway .icon with the generator
+        run: |
+          mkdir -p build/out
+          cat > build/make.ts <<'EOF'
+          import { buildGlassIcon } from '../src/icon/glass.ts';
+          import { writeProjectFiles } from '../src/gen/index.ts';
+          const svg = (body: string) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">${body}</svg>`;
+          const files = buildGlassIcon({
+            background: svg('<rect width="1024" height="1024" fill="#0a84ff"/>'),
+            foreground: [svg('<circle cx="512" cy="512" r="300" fill="#ffffff"/>')],
+          });
+          writeProjectFiles(files, 'build');
+          EOF
+          node build/make.ts
+          find build/AppIcon.icon -type f
+          cat build/AppIcon.icon/icon.json
+      - name: Compile with actool
+        run: |
+          xcrun actool --compile build/out build/AppIcon.icon \
+            --platform macosx --minimum-deployment-target 26.0 \
+            --app-icon AppIcon --output-partial-info-plist build/out/partial.plist \
+            --include-all-app-icons --enable-icon-stack-fallback-generation=disabled
+          cat build/out/partial.plist
+          xcrun --sdk macosx assetutil --info build/out/Assets.car
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glass-icon
+          path: |
+            build/out/Assets.car
+            build/out/partial.plist
+            build/AppIcon.icon
