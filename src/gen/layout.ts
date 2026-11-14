@@ -19,7 +19,7 @@ export type Paint = {
 
 export type LayoutNode = {
   id: string;
-  kind: 'box' | 'text' | 'button' | 'select';
+  kind: 'box' | 'text' | 'button' | 'select' | 'progress';
   title?: TextValue;      // the window title (root only)
   horizontal: boolean;    // main axis of the box
   gap: number;
@@ -36,6 +36,7 @@ export type LayoutNode = {
   content?: Binding;      // text and button content
   handler?: string;       // button click handler
   languages?: [string, string][]; // select: [tag, endonym] choices
+  progress?: Node['progress'];    // progress: value/max, indeterminate or source (passed through)
   children: LayoutNode[];
 };
 
@@ -91,6 +92,7 @@ function build(node: Node, parent: LayoutNode | undefined, languages: [string, s
   if (height !== undefined) result.height = height;
   if (node.content !== undefined) result.content = node.content;
   if (node.on?.click !== undefined) result.handler = node.on.click;
+  if (node.progress !== undefined) result.progress = node.progress;
   if (kind === 'select') result.languages = languages ?? [];
   if (parent && parent.align === 'stretch') {
     const crossSize = parent.horizontal ? result.height : result.width;

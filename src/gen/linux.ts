@@ -18,6 +18,10 @@ function rgba(hex: string): string {
   return `rgba(${r}, ${g}, ${b}, ${Number((a / 255).toFixed(3))})`;
 }
 
+function hasProgress(node: Node): boolean {
+  return node.kind === 'progress' || node.children.some(hasProgress);
+}
+
 function hasSelect(node: Node): boolean {
   return node.kind === 'select' || node.children.some(hasSelect);
 }
@@ -303,6 +307,7 @@ void on_language_selected(GObject* object, GParamSpec*, gpointer) {
 
 export function generateLinuxUi(ir: Ir, appId: string, i18n?: I18nGenOptions): string {
   const { root } = ir;
+  if (hasProgress(root)) throw new Error('progress is not supported by the linux generator yet');
   if (hasSelect(root) && (!i18n || i18n.packs.length === 0)) throw new Error('<select language> needs at least one language pack');
   const translated = i18n !== undefined && i18n.packs.length > 0;
   const layout = layoutOf(root, languageChoices(i18n));

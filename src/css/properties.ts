@@ -1,4 +1,4 @@
-export const ELEMENT_KINDS = ['window', 'view', 'text', 'button', 'select'] as const;
+export const ELEMENT_KINDS = ['window', 'view', 'text', 'button', 'select', 'progress'] as const;
 export type ElementKind = (typeof ELEMENT_KINDS)[number];
 export type StyleValue = number | string | number[];
 
@@ -58,7 +58,7 @@ const color = {
 };
 
 const BOX: ElementKind[] = ['window', 'view'];
-const SIZE: ElementKind[] = ['window', 'view', 'text', 'button', 'select'];
+const SIZE: ElementKind[] = ['window', 'view', 'text', 'button', 'select', 'progress'];
 const TEXT: ElementKind[] = ['text'];
 const TEXT_AND_BUTTON: ElementKind[] = ['text', 'button', 'select'];
 
@@ -73,7 +73,7 @@ export const PROPERTIES: Record<string, PropertySpec> = {
   flex: { kinds: SIZE, ...grow },
   background: { kinds: BOX, ...color },
   'border-radius': { kinds: BOX, ...px },
-  color: { kinds: TEXT, ...color },
+  color: { kinds: ['text', 'progress'], ...color },
   'font-size': { kinds: TEXT_AND_BUTTON, ...px },
   'font-weight': { kinds: TEXT_AND_BUTTON, ...fontWeight },
   'text-align': { kinds: TEXT, ...keywords('left', 'center', 'right') },

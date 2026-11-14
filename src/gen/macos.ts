@@ -49,6 +49,10 @@ function sizeConstraints(node: LayoutNode, v: string): string[] {
   return lines;
 }
 
+function hasProgress(node: Node): boolean {
+  return node.kind === 'progress' || node.children.some(hasProgress);
+}
+
 function hasSelect(node: Node): boolean {
   return node.kind === 'select' || node.children.some(hasSelect);
 }
@@ -201,6 +205,7 @@ class Emitter {
 
 export function generateMacosUi(ir: Ir, i18n?: I18nGenOptions): string {
   const { root } = ir;
+  if (hasProgress(root)) throw new Error('progress is not supported by the macos generator yet');
   if (hasSelect(root) && (!i18n || i18n.packs.length === 0)) throw new Error('<select language> needs at least one language pack');
   const layout = layoutOf(root, languageChoices(i18n));
   const width = layout.width ?? DEFAULT_WIDTH;

@@ -84,6 +84,13 @@ function renderNode(node: Node, ir: Ir, texts: Texts, languages: string[]): stri
       const options = languageOptions(languages, false);
       return `<select id="forge-lang"${node.classes.length ? ` class="${esc(node.classes.join(' '))}"` : ''}${style}>${options}</select>`;
     }
+    case 'progress': {
+      // value/max like HTML; no value attribute = indeterminate. A language-download bar starts hidden and the script shows it.
+      const { value, max = 1, source } = node.progress ?? {};
+      const extra = (value !== undefined ? ` value="${value}"` : '') + ` max="${max}"`;
+      const bound = source === 'language-download' ? ' data-source="language-download" hidden' : '';
+      return `<progress${attrs}${bound}${extra}${style}></progress>`;
+    }
     case 'button': {
       const click = node.on?.click ? ` data-click="${esc(node.on.click)}"` : '';
       return `<button type="button"${attrs}${bound}${click}${style}>${text}</button>`;
@@ -95,7 +102,8 @@ function renderNode(node: Node, ir: Ir, texts: Texts, languages: string[]): stri
 
 const RELOAD = `try{new EventSource('/events').onmessage=function(e){if(e.data==='reload')location.reload();};}catch(e){}`;
 
-const CSS = `body{margin:0;padding:16px;font-family:system-ui,sans-serif;background:#eceff1;color:#222}
+const CSS = `progress[hidden]{display:none}
+body{margin:0;padding:16px;font-family:system-ui,sans-serif;background:#eceff1;color:#222}
 .card{box-shadow:0 2px 12px rgba(0,0,0,.2);background:#fff;overflow:hidden;max-width:100%}
 #forge-cli{margin-top:24px;max-width:480px;font-size:13px}
 #forge-cli button{margin:0 8px 8px 0}
@@ -170,18 +178,52 @@ function resolve(choice){
   var preferred=typeof navigator!=='undefined'?(navigator.languages||(navigator.language?[navigator.language]:[])):[];
   return forgePickLocale(Array.prototype.slice.call(preferred),languages);
 }
+// The <progress source="language-download"> bars: shown while a pack downloads, hidden otherwise.
+// value is null while the total size is unknown (indeterminate), else 0..1.
+function bars(show,value){
+  var els=all('[data-source="language-download"]');
+  for(var i=0;i<els.length;i++){
+    els[i].hidden=!show;
+    if(show&&value!==null&&value!==undefined)els[i].value=value;
+    else els[i].removeAttribute('value');
+  }
+}
+// Reads the response as text; with a Content-Length and a streaming body the bars follow the bytes received.
+function download(r,mine){
+  var total=r.headers&&r.headers.get?Number(r.headers.get('Content-Length')):0;
+  if(!total||!r.body||!r.body.getReader||typeof TextDecoder==='undefined')return r.text();
+  var reader=r.body.getReader();
+  var parts=[];
+  var got=0;
+  function next(){
+    return reader.read().then(function(step){
+      if(step.done){
+        var all_=new Uint8Array(got);var at=0;
+        parts.forEach(function(p){all_.set(p,at);at+=p.length;});
+        return new TextDecoder().decode(all_);
+      }
+      parts.push(step.value);got+=step.value.length;
+      if(mine===request)bars(true,Math.min(1,got/total));
+      return next();
+    });
+  }
+  return next();
+}
 function apply(choice){
   var tag=resolve(choice);
   var mine=++request;
-  if(tag==='en'||typeof fetch==='undefined'){pack=null;render();return;}
+  if(tag==='en'||typeof fetch==='undefined'){bars(false);pack=null;render();return;}
+  bars(true,null);
   fetch('lang/'+encodeURIComponent(tag)+'.lang',{credentials:'same-origin'}).then(function(r){
     if(!r.ok)throw new Error('no pack');
-    return r.text();
+    return download(r,mine);
   }).then(function(text){
     if(mine!==request)return;
+    bars(false);
     pack=forgeParseLang(text);render();
   }).catch(function(){
     if(mine!==request)return;
+    bars(false);
     pack=null;render();
   });
 }

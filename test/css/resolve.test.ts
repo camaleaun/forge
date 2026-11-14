@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { parseCss } from '../../src/css/parse.ts';
 import { resolveStyle } from '../../src/css/resolve.ts';
 
-const resolve = (css: string, kind: 'window' | 'view' | 'text' | 'button', element: { classes: string[]; id?: string }) => {
+const resolve = (css: string, kind: 'window' | 'view' | 'text' | 'button' | 'progress', element: { classes: string[]; id?: string }) => {
   const parsed = parseCss(css, 'App.css');
   assert.deepEqual(parsed.errors, []);
   return resolveStyle(kind, element, parsed.rules, 'App.css');
@@ -90,5 +90,18 @@ describe('given CSS for the select element', () => {
     const { rules } = parseCss('select { color: #ff0000; }', 'App.css');
     assert.deepEqual(resolveStyle('select', { classes: [] }, rules, 'App.css').errors,
       ['App.css:1:10: "color" is not supported on <select> in v1']);
+  });
+});
+
+describe('given the progress element', () => {
+  it('when a progress rule sets size and color, then they resolve', () => {
+    const { style, errors } = resolve('progress { width: 200px; height: 8px; flex: 1; color: #0a0 }', 'progress', { classes: [] });
+    assert.deepEqual(errors, []);
+    assert.deepEqual(style, { width: 200, height: 8, flex: 1, color: '#00aa00ff' });
+  });
+
+  it('when a progress rule sets gap, then it is not supported on <progress>', () => {
+    const { errors } = resolve('.bar { gap: 4px }', 'progress', { classes: ['bar'] });
+    assert.deepEqual(errors, ['App.css:1:8: "gap" is not supported on <progress> in v1']);
   });
 });

@@ -22,7 +22,7 @@ export type BuildInput = {
 
 type Handler = () => void;
 
-const KINDS = ['window', 'view', 'text', 'button', 'select'];
+const KINDS = ['window', 'view', 'text', 'button', 'select', 'progress'];
 
 function isVNode(value: unknown): value is VNode {
   return typeof value === 'object' && value !== null && 'type' in value;
@@ -68,6 +68,36 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
     }
     if (seenIds.has(id)) at(loc, `duplicate id "${id}"`);
     seenIds.add(id);
+  };
+
+  const progressOf = (props: Record<string, unknown>, hasChildren: boolean, loc: Loc): Node['progress'] | undefined => {
+    const before = errors.length;
+    const progress: NonNullable<Node['progress']> = {};
+    if (hasChildren) at(loc, '<progress> cannot have children');
+    let max = 1;
+    if (props.max !== undefined) {
+      if (typeof props.max === 'number' && Number.isFinite(props.max) && props.max > 0) {
+        max = props.max;
+        progress.max = max;
+      } else at(loc, '<progress> max must be a finite number greater than 0');
+    }
+    if (props.value !== undefined) {
+      if (typeof props.value !== 'number') at(loc, '<progress> value must be a number, e.g. value={0.5}');
+      else if (!Number.isFinite(props.value) || props.value < 0 || props.value > max) {
+        at(loc, `<progress> value must be a finite number from 0 to max (${max}), got ${props.value}`);
+      } else progress.value = props.value;
+    }
+    if (props.indeterminate !== undefined) {
+      if (props.indeterminate !== true) at(loc, '<progress> indeterminate is a bare attribute');
+      else if (props.value !== undefined) at(loc, '<progress> cannot be indeterminate and have a value');
+      else progress.indeterminate = true;
+    }
+    if (props.source !== undefined) {
+      if (props.source !== 'language-download') at(loc, '<progress> source must be "language-download"');
+      else if (!input.translateLiterals) at(loc, '<progress source="language-download"> needs an languages/ folder with at least one language file');
+      else progress.source = 'language-download';
+    }
+    return errors.length === before ? progress : undefined;
   };
 
   // Expands components, fragments and <only>/<except> into a flat list of intrinsic elements, strings and states.
@@ -151,6 +181,8 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
       else if (vnode.children.length > 0) at(loc, '<select language> cannot have children: the options are the available languages');
       else if (!input.translateLiterals) at(loc, '<select language> needs an languages/ folder with at least one language file');
       else node.select = { language: true };
+    } else if (kind === 'progress') {
+      node.progress = progressOf(props, vnode.children.length > 0, loc);
     } else if (kind === 'text' || kind === 'button') {
       const states = vnode.children.filter((child): child is State => child instanceof State);
       const messages = vnode.children.filter((child): child is Message => child instanceof Message);
