@@ -1,0 +1,37 @@
+{
+  "normalizeTag": [
+    ["pt_BR.UTF-8", "pt-BR"],
+    ["PT-br", "pt-BR"],
+    ["pt_br", "pt-BR"],
+    ["pt-BR", "pt-BR"],
+    ["pt", "pt"],
+    ["en_US.UTF-8", "en-US"],
+    ["zh_Hant_TW", "zh-Hant-TW"],
+    ["de_DE@euro", "de-DE"],
+    ["C", null],
+    ["POSIX", null],
+    ["", null]
+  ],
+  "pickLocale": [
+    { "preferred": ["pt-BR"], "available": ["pt-BR"], "expected": "pt-BR" },
+    { "preferred": ["pt"], "available": ["pt-BR"], "expected": "pt-BR" },
+    { "preferred": ["pt-PT"], "available": ["pt-BR"], "expected": "pt-BR" },
+    { "preferred": ["pt-AO"], "available": ["pt-BR"], "expected": "pt-BR" },
+    { "preferred": ["fr-FR"], "available": ["pt-BR"], "expected": "en" },
+    { "preferred": ["en-GB", "pt-BR"], "available": ["pt-BR"], "expected": "en" },
+    { "preferred": ["fr-FR", "pt-PT"], "available": ["pt-BR"], "expected": "pt-BR" },
+    { "preferred": [], "available": ["pt-BR"], "expected": "en" },
+    { "preferred": ["pt-BR"], "available": [], "expected": "en" },
+    { "preferred": ["en"], "available": ["pt-BR"], "expected": "en" }
+  ],
+  "plural": [
+    { "name": "en", "formula": "n != 1", "nplurals": 2, "cases": [[0, 1], [1, 0], [2, 1], [100, 1]] },
+    { "name": "pt-BR", "formula": "n > 1", "nplurals": 2, "cases": [[0, 0], [1, 0], [2, 1], [3, 1], [100, 1]] },
+    { "name": "ru", "formula": "n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2", "nplurals": 3,
+      "cases": [[0, 2], [1, 0], [2, 1], [4, 1], [5, 2], [11, 2], [12, 2], [21, 0], [22, 1], [25, 2], [100, 2], [101, 0]] },
+    { "name": "ja", "formula": "0", "nplurals": 1, "cases": [[0, 0], [1, 0], [5, 0]] }
+  ],
+  "invalidFormulas": [
+    "", "n = 1", "alert(1)", "n ? 1", "1 +", "n; 1", "n == 1 ? 0", "n.constructor", "n == 'a'", "n++", "n == 1 ? 0 : (", "((((((((((((((((((((((((((((((((((((((((((n))))))))))))))))))))))))))))))))))))))))))"
+  ]
+}
