@@ -14,7 +14,7 @@ const dirs: string[] = [];
 // A richer IR: nested row view, flex, styles, two buttons, a handler without effects, state-bound button.
 function richIr(): Ir {
   const ir = helloIr();
-  ir.states.push({ id: 's1', initial: 'Go "now"' });
+  ir.states.push({ id: 's1', initial: { kind: 'literal', value: 'Go "now"' } });
   ir.handlers.push({ id: 'reset', effects: [] });
   ir.root.style = { width: 400, height: 200, flexDirection: 'column', alignItems: 'stretch', justifyContent: 'space-between', gap: 8, padding: [4, 5, 6, 7], background: '#102030ff', borderRadius: 6 };
   ir.root.children.push(

@@ -1,15 +1,19 @@
 import { APP_NAME_PATTERN, CPP_KEYWORDS, ID_PATTERN, RESERVED_FLAGS, RESERVED_ID_PREFIXES, SEMVER } from './names.ts';
+import { Message } from '../i18n/message.ts';
 import { Fragment } from './runtime.ts';
 import type { VNode } from './runtime.ts';
 import { State, registeredStates, traceHandler } from './state.ts';
-import type { Effect, Ir, Loc, Node } from './types.ts';
+import { collectMessages, messageConflicts, toTextValue } from './text.ts';
+import type { Effect, Ir, Loc, Node, TextValue } from './types.ts';
 
-export type CommandDef = { description: string; run: () => void };
+export type CommandDef = { description: string | Message; run: () => void };
 export type BuildInput = {
   file: string;
   app: { name: string; version: string };
   App: () => unknown;
   commands?: Record<string, CommandDef>;
+  // Set when the project has an i18n/ folder: literal JSX text and the window title become translatable messages.
+  translateLiterals?: boolean;
 };
 
 type Handler = () => void;
@@ -44,6 +48,9 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
 
   if (!SEMVER.test(input.app.version)) errors.push(`package.json: version "${input.app.version}" must be semver x.y.z`);
   if (!APP_NAME_PATTERN.test(input.app.name)) errors.push(`package.json: name "${input.app.name}" must match ${APP_NAME_PATTERN}`);
+
+  const literalOrMessage = (value: string): TextValue =>
+    input.translateLiterals && value !== '' ? { kind: 'message', text: value } : { kind: 'literal', value };
 
   const handlerFor = (fn: Handler): string => {
     const known = handlerIds.get(fn);
@@ -87,7 +94,8 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
     }
     if (kind === 'window' && !isRoot) at(loc, '<window> can only be the root element');
     if (typeof props.id === 'string') checkId(props.id, loc);
-    if (typeof props.title === 'string') node.title = props.title;
+    if (typeof props.title === 'string') node.title = literalOrMessage(props.title);
+    else if (props.title instanceof Message) node.title = toTextValue(props.title);
     if (props.onClick !== undefined) {
       if (kind !== 'button') at(loc, 'onClick is only supported on <button>');
       else if (typeof props.onClick === 'function') node.on = { click: handlerFor(props.onClick as Handler) };
@@ -95,12 +103,16 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
     }
     if (kind === 'text' || kind === 'button') {
       const states = vnode.children.filter((child): child is State => child instanceof State);
+      const messages = vnode.children.filter((child): child is Message => child instanceof Message);
       if (states.length > 0 && states.length < vnode.children.length) {
         at(loc, `<${kind}> cannot mix text and state in v1`);
       } else if (states.length > 0) {
         node.content = { kind: 'state', state: states[0].id };
+      } else if (messages.length > 0) {
+        if (messages.length === 1 && vnode.children.length === 1) node.content = toTextValue(messages[0]);
+        else at(loc, `<${kind}> cannot mix a message with other content in v1`);
       } else {
-        node.content = { kind: 'literal', value: vnode.children.map(String).join('') };
+        node.content = literalOrMessage(vnode.children.map(String).join(''));
       }
     } else {
       node.children = vnode.children.filter(isVNode).map((child) => toNode(child, false));
@@ -120,19 +132,21 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
   for (const [flag, command] of Object.entries(input.commands ?? {})) {
     if (!flag.startsWith('--')) errors.push(`${file}: command "${flag}" must start with "--"`);
     else if (RESERVED_FLAGS.includes(flag) || flag.startsWith('--forge-')) errors.push(`${file}: command "${flag}" is reserved`);
-    else commands.push({ flag, description: command.description, handler: handlerFor(command.run) });
+    else commands.push({ flag, description: toTextValue(command.description), handler: handlerFor(command.run) });
   }
 
-  if (errors.length > 0) return { errors };
-  return {
-    ir: {
-      irVersion: 1,
-      app: input.app,
-      root,
-      states: registeredStates().map((s) => ({ id: s.id, initial: s.initial })),
-      handlers,
-      commands,
-    },
-    errors,
+  const ir: Ir = {
+    irVersion: 2,
+    app: input.app,
+    root,
+    states: registeredStates().map((s) => ({ id: s.id, initial: s.initial })),
+    messages: [],
+    handlers,
+    commands,
   };
+  ir.messages = collectMessages(ir);
+  errors.push(...messageConflicts(ir).map((message) => `${file}: ${message}`));
+
+  if (errors.length > 0) return { errors };
+  return { ir, errors };
 }

@@ -1,4 +1,6 @@
-import type { Effect } from './types.ts';
+import { Message } from '../i18n/message.ts';
+import { toTextValue } from './text.ts';
+import type { Effect, TextValue } from './types.ts';
 
 let states: State[] = [];
 let recorder: Effect[] | null = null;
@@ -8,19 +10,19 @@ class TraceError extends Error {}
 
 export class State {
   id: string;
-  initial: string;
+  initial: TextValue;
 
-  constructor(id: string, initial: string) {
+  constructor(id: string, initial: TextValue) {
     this.id = id;
     this.initial = initial;
   }
 
-  set(value: string): void {
+  set(value: string | Message): void {
     if (recorder === null) throw new Error('state.set() can only run inside a handler');
-    if (typeof value !== 'string') {
-      throw new TraceError(`handler "${tracingHandler}": state "${this.id}".set() expects a string`);
+    if (typeof value !== 'string' && !(value instanceof Message)) {
+      throw new TraceError(`handler "${tracingHandler}": state "${this.id}".set() expects a string or a message`);
     }
-    recorder.push({ op: 'set', state: this.id, value: { kind: 'literal', value } });
+    recorder.push({ op: 'set', state: this.id, value: toTextValue(value) });
   }
 
   toString(): string {
@@ -32,8 +34,8 @@ export class State {
   }
 }
 
-export function state(initial: string): State {
-  const created = new State(`s${states.length}`, initial);
+export function state(initial: string | Message): State {
+  const created = new State(`s${states.length}`, toTextValue(initial));
   states.push(created);
   return created;
 }

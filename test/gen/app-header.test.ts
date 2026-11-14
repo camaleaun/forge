@@ -12,7 +12,7 @@ describe('given the hello IR', () => {
 describe('given an IR with a prerelease version, two states and two handlers', () => {
   const ir = helloIr();
   ir.app.version = '0.1.0-rc.1';
-  ir.states.push({ id: 's1', initial: '' });
+  ir.states.push({ id: 's1', initial: { kind: 'literal', value: '' } });
   ir.handlers.push({ id: 'reset', effects: [] });
   const header = generateAppHeader(ir);
 

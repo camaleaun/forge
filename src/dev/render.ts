@@ -1,3 +1,4 @@
+import { englishIr, textOf } from '../ir/text.ts';
 import type { Ir, Node, Style } from '../ir/types.ts';
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -42,11 +43,12 @@ function renderNode(node: Node, ir: Ir): string {
   const attrs = ` id="${esc(node.id)}"` + (node.classes.length ? ` class="${esc(node.classes.join(' '))}"` : '');
   let text = '';
   let bound = '';
-  if (node.content?.kind === 'literal') text = esc(node.content.value);
+  if (node.content && node.content.kind !== 'state') text = esc(textOf(node.content));
   else if (node.content?.kind === 'state') {
     const stateId = node.content.state;
     bound = ` data-state="${esc(stateId)}"`;
-    text = esc(ir.states.find((s) => s.id === stateId)?.initial ?? '');
+    const initial = ir.states.find((s) => s.id === stateId)?.initial;
+    text = esc(initial ? textOf(initial) : '');
   }
   const style = styleAttr(node.kind, node.style);
   const children = node.children.map((child) => renderNode(child, ir)).join('');
@@ -115,13 +117,13 @@ export function renderPage(ir: Ir): string {
     ? `<section id="forge-cli"><strong>CLI</strong><p>${ir.commands
         .map(
           (c) =>
-            `<button type="button" data-command="${esc(c.flag)}" data-handler="${esc(c.handler)}">${esc(c.flag)}</button> ${esc(c.description)}<br>`,
+            `<button type="button" data-command="${esc(c.flag)}" data-handler="${esc(c.handler)}">${esc(c.flag)}</button> ${esc(textOf(c.description))}<br>`,
         )
         .join('')}</p><div id="forge-cli-out"></div></section>`
     : '';
   const body = `<div class="card" style="width:fit-content;max-width:100%">${renderNode(ir.root, ir)}</div>${cli}`;
-  const json = `<script type="application/json" id="forge-ir">${safeJson(ir)}</script>`;
-  return document_(ir.root.title ?? ir.app.name, body + json, APP_SCRIPT);
+  const json = `<script type="application/json" id="forge-ir">${safeJson(englishIr(ir))}</script>`;
+  return document_(ir.root.title ? textOf(ir.root.title) : ir.app.name, body + json, APP_SCRIPT);
 }
 
 export function renderErrorPage(errors: string[]): string {

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildProjectIr } from '../../src/project/build.ts';
@@ -80,12 +80,12 @@ describe('given an app edited between two builds', () => {
   it('when building twice after changing the text and the CSS, then the second IR reflects both changes', () =>
     withCopy(async (dir) => {
       const first = await buildProjectIr(dir);
-      assert.equal(first.ir?.states[0].initial, 'Press the button');
+      assert.deepEqual(first.ir?.states[0].initial, { kind: 'literal', value: 'Press the button' });
       writeFileSync(join(dir, 'App.tsx'), readFileSync(join(dir, 'App.tsx'), 'utf8').replace('Press the button', 'Go!'));
       writeFileSync(join(dir, 'App.css'), readFileSync(join(dir, 'App.css'), 'utf8').replace('width: 100px', 'width: 140px'));
       const second = await buildProjectIr(dir);
       assert.deepEqual(second.errors, []);
-      assert.equal(second.ir?.states[0].initial, 'Go!');
+      assert.deepEqual(second.ir?.states[0].initial, { kind: 'literal', value: 'Go!' });
       assert.equal(second.ir?.root.children[1].style.width, 140);
     }));
 });
@@ -114,5 +114,34 @@ describe('given an app with an icon.svg next to App.tsx', () => {
       const { ir, errors } = await buildProjectIr(dir);
       assert.equal(ir, undefined);
       assert.match(errors[0], /^icon\.svg:2:3: unsupported element <text>/);
+    }));
+});
+
+describe('given an app that imports the WordPress functions from forge and has an i18n folder', () => {
+  it('when building the project IR, then __() texts and the literal JSX text become messages', () =>
+    withCopy(async (dir) => {
+      const source = readFileSync(join(dir, 'App.tsx'), 'utf8')
+        .replace("import { state } from 'forge';", "import { state, __ } from 'forge';")
+        .replace("state('Press the button')", "state(__('Press the button'))");
+      writeFileSync(join(dir, 'App.tsx'), source);
+      mkdirSync(join(dir, 'i18n'));
+      writeFileSync(join(dir, 'i18n/pt-BR.lang'), 'Press the button\tAperte o botão\n');
+      const { ir, errors } = await buildProjectIr(dir);
+      assert.deepEqual(errors, []);
+      assert.deepEqual(ir?.states[0].initial, { kind: 'message', text: 'Press the button' });
+      assert.deepEqual(ir?.root.children[1].content, { kind: 'message', text: 'Greet' });
+      assert.deepEqual(ir?.root.title, { kind: 'message', text: 'Hello, forge' });
+      assert.deepEqual(ir?.messages.map((m) => m.text), ['Greet', 'Hello, forge', 'Press the button']);
+    }));
+
+  it('when the project has no i18n folder, then the same __() still works and plain JSX text stays literal', () =>
+    withCopy(async (dir) => {
+      const source = readFileSync(join(dir, 'App.tsx'), 'utf8')
+        .replace("import { state } from 'forge';", "import { state, __ } from 'forge';")
+        .replace("state('Press the button')", "state(__('Press the button'))");
+      writeFileSync(join(dir, 'App.tsx'), source);
+      const { ir } = await buildProjectIr(dir);
+      assert.deepEqual(ir?.root.children[1].content, { kind: 'literal', value: 'Greet' });
+      assert.deepEqual(ir?.messages.map((m) => m.text), ['Press the button']);
     }));
 });

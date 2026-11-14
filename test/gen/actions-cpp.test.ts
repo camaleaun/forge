@@ -26,7 +26,7 @@ describe('given a handler with quotes and a newline in its text and a handler wi
 describe('given a handler with two effects', () => {
   it('when generating, then the effects are emitted in order', () => {
     const ir = helloIr();
-    ir.states.push({ id: 's1', initial: '' });
+    ir.states.push({ id: 's1', initial: { kind: 'literal', value: '' } });
     ir.handlers[0].effects.push({ op: 'set', state: 's1', value: { kind: 'literal', value: 'x' } });
     const source = generateActionsCpp(ir);
     assert.ok(source.indexOf('StateId::s0') < source.indexOf('StateId::s1'));

@@ -1,4 +1,5 @@
 import type { Ir, Node, Style } from '../ir/types.ts';
+import { textOf } from '../ir/text.ts';
 import { objcString } from './escape.ts';
 
 const DEFAULT_WIDTH = 320;
@@ -63,7 +64,8 @@ class Emitter {
   }
 
   initialText(stateId: string): string {
-    return this.ir.states.find((state) => state.id === stateId)?.initial ?? '';
+    const initial = this.ir.states.find((state) => state.id === stateId)?.initial;
+    return initial ? textOf(initial) : '';
   }
 
   // Emits `text` or `button` content: the initial value, plus a binding when it follows a state.
@@ -74,7 +76,7 @@ class Emitter {
       this.emit(`[${v} ${setter}:${objcString(this.initialText(content.state))}];`);
       this.emit(`g_surface.bind(StateId::${content.state}, ${v}, ${isButton});`);
     } else {
-      this.emit(`[${v} ${setter}:${objcString(content?.value ?? '')}];`);
+      this.emit(`[${v} ${setter}:${objcString(content ? textOf(content) : '')}];`);
     }
   }
 
@@ -266,7 +268,7 @@ int forge_app::run_ui(int argc, char** argv) {
                              NSWindowStyleMaskResizable)
                     backing:NSBackingStoreBuffered
                       defer:NO];
-    [window setTitle:${objcString(root.title ?? ir.app.name)}];
+    [window setTitle:${objcString(root.title ? textOf(root.title) : ir.app.name)}];
     [window setContentMinSize:NSMakeSize(${width}, ${height})];
     [window center];
     NSView* content = [window contentView];

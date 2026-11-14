@@ -1,6 +1,7 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { state, resetStates, registeredStates, traceHandler } from '../../src/ir/state.ts';
+import { __, _n, sprintf } from '../../src/i18n/message.ts';
 
 describe('given states created in order', () => {
   beforeEach(() => resetStates());
@@ -8,7 +9,7 @@ describe('given states created in order', () => {
   it('when creating two states, then they get the ids s0 and s1 and keep their initial text', () => {
     const a = state('first');
     const b = state('second');
-    assert.deepEqual([a.id, a.initial, b.id, b.initial], ['s0', 'first', 's1', 'second']);
+    assert.deepEqual([a.id, a.initial, b.id, b.initial], ['s0', { kind: 'literal', value: 'first' }, 's1', { kind: 'literal', value: 'second' }]);
     assert.deepEqual(registeredStates().map((s) => s.id), ['s0', 's1']);
   });
 
@@ -69,7 +70,7 @@ describe('given a handler traced at build time', () => {
     const count = state('0');
     assert.throws(
       () => traceHandler('bad', () => count.set(5 as never)),
-      { message: 'handler "bad": state "s0".set() expects a string' },
+      { message: 'handler "bad": state "s0".set() expects a string or a message' },
     );
   });
 
@@ -77,5 +78,22 @@ describe('given a handler traced at build time', () => {
     const message = state('x');
     traceHandler('ok', () => message.set('y'));
     assert.throws(() => message.set('z'), { message: 'state.set() can only run inside a handler' });
+  });
+});
+
+describe('given states and handlers that use translatable messages', () => {
+  beforeEach(() => resetStates());
+
+  it('when a state starts with a message, then its initial value is a message text', () => {
+    const message = state(__('Press the button'));
+    assert.deepEqual(message.initial, { kind: 'message', text: 'Press the button' });
+  });
+
+  it('when a handler sets a message (plural and arguments included), then the effect carries the message', () => {
+    const message = state('x');
+    const effects = traceHandler('count', () => message.set(sprintf(_n('%d file', '%d files', 3), 3)));
+    assert.deepEqual(effects, [
+      { op: 'set', state: 's0', value: { kind: 'message', text: '%d file', plural: '%d files', count: 3, args: [3] } },
+    ]);
   });
 });

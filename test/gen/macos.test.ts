@@ -119,7 +119,7 @@ describe('given two buttons bound to different handlers', () => {
 describe('given a button whose title is bound to a state', () => {
   it('when generating, then it starts with the initial text and is bound as a title', () => {
     const ir = helloIr();
-    ir.states.push({ id: 's1', initial: 'Go' });
+    ir.states.push({ id: 's1', initial: { kind: 'literal', value: 'Go' } });
     ir.root.children.push(node('button', 'button_3', { content: { kind: 'state', state: 's1' } }));
     const source = generateMacosUi(ir);
     assert.ok(source.includes('[w_button_3 setTitle:@"Go"];'));
@@ -129,8 +129,8 @@ describe('given a button whose title is bound to a state', () => {
 
 describe('given quotes in the window title and in the texts', () => {
   const ir = helloIr();
-  ir.root.title = 'Say "hi"';
-  ir.states[0].initial = 'He said "no"';
+  ir.root.title = { kind: 'literal', value: 'Say "hi"' };
+  ir.states[0].initial = { kind: 'literal', value: 'He said "no"' };
   ir.app.name = 'my"app';
   const source = generateMacosUi(ir);
 

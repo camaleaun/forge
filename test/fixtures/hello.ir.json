@@ -1,38 +1,109 @@
 {
-  "irVersion": 1,
-  "app": { "name": "hello", "version": "0.1.0" },
+  "irVersion": 2,
+  "app": {
+    "name": "hello",
+    "version": "0.1.0"
+  },
   "root": {
     "kind": "window",
     "id": "window_0",
     "classes": [],
-    "title": "Hello, forge",
-    "style": { "width": 320, "height": 120, "padding": [20, 20, 20, 20], "gap": 12, "alignItems": "start" },
+    "title": {
+      "kind": "literal",
+      "value": "Hello, forge"
+    },
+    "style": {
+      "width": 320,
+      "height": 120,
+      "padding": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "gap": 12,
+      "alignItems": "start"
+    },
     "children": [
       {
         "kind": "text",
         "id": "text_1",
-        "classes": ["message"],
-        "content": { "kind": "state", "state": "s0" },
-        "style": { "fontSize": 15, "color": "#222222ff" },
+        "classes": [
+          "message"
+        ],
+        "content": {
+          "kind": "state",
+          "state": "s0"
+        },
+        "style": {
+          "fontSize": 15,
+          "color": "#222222ff"
+        },
         "children": [],
-        "loc": [8, 7]
+        "loc": [
+          8,
+          7
+        ]
       },
       {
         "kind": "button",
         "id": "button_2",
         "classes": [],
-        "content": { "kind": "literal", "value": "Greet" },
-        "on": { "click": "greet" },
-        "style": { "width": 100 },
+        "content": {
+          "kind": "literal",
+          "value": "Greet"
+        },
+        "on": {
+          "click": "greet"
+        },
+        "style": {
+          "width": 100
+        },
         "children": [],
-        "loc": [9, 7]
+        "loc": [
+          9,
+          7
+        ]
       }
     ],
-    "loc": [7, 5]
+    "loc": [
+      7,
+      5
+    ]
   },
-  "states": [{ "id": "s0", "initial": "Press the button" }],
-  "handlers": [
-    { "id": "greet", "effects": [{ "op": "set", "state": "s0", "value": { "kind": "literal", "value": "Hello, world!" } }] }
+  "states": [
+    {
+      "id": "s0",
+      "initial": {
+        "kind": "literal",
+        "value": "Press the button"
+      }
+    }
   ],
-  "commands": [{ "flag": "--greet", "description": "Print the greeting", "handler": "greet" }]
+  "messages": [],
+  "handlers": [
+    {
+      "id": "greet",
+      "effects": [
+        {
+          "op": "set",
+          "state": "s0",
+          "value": {
+            "kind": "literal",
+            "value": "Hello, world!"
+          }
+        }
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "flag": "--greet",
+      "description": {
+        "kind": "literal",
+        "value": "Print the greeting"
+      },
+      "handler": "greet"
+    }
+  ]
 }

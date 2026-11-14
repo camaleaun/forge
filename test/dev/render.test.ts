@@ -55,13 +55,13 @@ describe('given user text with markup', () => {
   });
   it('when the title has quotes and ampersands then they are escaped', () => {
     const ir = helloIr();
-    ir.root.title = 'A "quoted" & <b>';
+    ir.root.title = { kind: 'literal', value: 'A "quoted" & <b>' };
     const html = renderPage(ir);
     assert.match(html, /<title>A &quot;quoted&quot; &amp; &lt;b&gt;<\/title>/);
   });
   it('when a state initial text and an id contain markup then both are escaped', () => {
     const ir = helloIr();
-    ir.states[0].initial = '<img src=x onerror=1>';
+    ir.states[0].initial = { kind: 'literal', value: '<img src=x onerror=1>' };
     ir.root.children[0].id = 'x"><i>';
     const html = renderPage(ir);
     assert.doesNotMatch(html, /<img src=x/);

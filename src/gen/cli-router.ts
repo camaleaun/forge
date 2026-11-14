@@ -1,4 +1,5 @@
 import type { Ir } from '../ir/types.ts';
+import { textOf } from '../ir/text.ts';
 import { cppString } from './escape.ts';
 
 const BUILTINS = [
@@ -7,7 +8,7 @@ const BUILTINS = [
 ];
 
 function helpLines(ir: Ir): string[] {
-  const options = [...ir.commands, ...BUILTINS];
+  const options = [...ir.commands.map((command) => ({ flag: command.flag, description: textOf(command.description) })), ...BUILTINS];
   const width = Math.max(...options.map((option) => option.flag.length));
   return [
     `Usage: ${ir.app.name} [option]`,

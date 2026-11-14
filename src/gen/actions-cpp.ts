@@ -1,8 +1,9 @@
 import type { Effect, Ir } from '../ir/types.ts';
+import { textOf } from '../ir/text.ts';
 import { cppString } from './escape.ts';
 
 function emitEffect(effect: Effect): string {
-  return `  out.set_state(StateId::${effect.state}, ${cppString(effect.value.value)});`;
+  return `  out.set_state(StateId::${effect.state}, ${cppString(textOf(effect.value))});`;
 }
 
 export function generateActionsCpp(ir: Ir): string {

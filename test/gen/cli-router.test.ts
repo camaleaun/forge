@@ -11,7 +11,7 @@ describe('given the hello IR', () => {
 
 describe('given a command with a longer flag and a quoted description', () => {
   const ir = helloIr();
-  ir.commands.push({ flag: '--say-goodbye-loudly', description: 'Say "bye"', handler: 'greet' });
+  ir.commands.push({ flag: '--say-goodbye-loudly', description: { kind: 'literal', value: 'Say "bye"' }, handler: 'greet' });
   const source = generateCliRouter(ir);
 
   it('when generating, then the help columns align to the longest flag', () => {
