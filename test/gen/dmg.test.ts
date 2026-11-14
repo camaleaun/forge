@@ -19,3 +19,10 @@ describe('given another app name', () => {
     assert.ok(!script.includes('"hello'));
   });
 });
+
+describe('given the Finder setup script', () => {
+  it('when generating, then the window is left open at the end (closing it last made the .DS_Store, and so the layout, disappear)', () => {
+    const lines = generateDmgSetupScript(helloIr()).trim().split('\n');
+    assert.deepEqual(lines.slice(-3), ['    delay 2', '  end tell', 'end tell']);
+  });
+});
