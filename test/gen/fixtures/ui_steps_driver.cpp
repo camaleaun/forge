@@ -66,7 +66,7 @@ gboolean step(gpointer) {
   report();
   if (g_next >= g_clicks.size()) std::exit(0);
   const std::string label = g_clicks[g_next++];
-  if (label == "key:Enter") gtk_window_activate_default(the_window());  // what Enter does in a window with a default widget
+  if (label == "key:Enter") gtk_widget_activate_default(GTK_WIDGET(the_window()));  // what Enter does in a window with a default widget
   if (label == "key:Escape") {
     // The window's key controller gets the Escape key press (the display server's own key delivery is GTK's job).
     GListModel* controllers = gtk_widget_observe_controllers(GTK_WIDGET(the_window()));
