@@ -1,14 +1,14 @@
 # forge
 
-Gerador de apps nativos minúsculos a partir de uma única fonte: `app.json` (tokens, janela, widgets, comandos de CLI) e `index.ts` (comportamento).
-Alvo da v1: macOS + CLI, só Label e Button. Linux, Windows e Web vêm depois.
+Generates tiny native apps from a single source: `app.json` (tokens, window, widgets, CLI commands) and `index.ts` (behavior).
+v1 target: macOS + CLI, Label and Button only. Linux, Windows and Web come later.
 
-Status: em construção (M1 em andamento). O plano e as decisões estão em [forge-rag](https://github.com/camaleaun/forge-rag) (privado).
+Status: work in progress. The spec validator, the action tracer and the string escaping are done; the generator is next.
 
-## Regras do projeto
-- Sem pacotes npm nas ferramentas nem nos programas gerados (o `package.json` só marca `"type": "module"` e o script de teste).
-- Node 24 roda os `.ts` direto, sem build e sem checagem de tipos. Testes com o runner embutido: `npm test` (`node --test`).
-- TDD/BDD: cada comportamento nasce de um teste Given/When/Then visto falhando antes do código.
+## Project rules
+- No npm packages in the tooling or in the generated programs. `package.json` only sets `"type": "module"` and the test script.
+- Node 24 runs the `.ts` files directly, with no build step and no type checking. Tests use the built-in runner: `npm test` (`node --test`).
+- TDD/BDD: every behavior starts as a Given/When/Then test that is seen failing before any code is written.
 
-## Licença
+## License
 MIT
