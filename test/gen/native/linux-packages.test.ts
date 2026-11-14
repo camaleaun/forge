@@ -57,3 +57,28 @@ describe('given a hello 0.2.0-rc.1 project packaged with cpack', { skip: !canBui
     assert.match(list, /usr\/bin\/hello$/m);
   });
 });
+
+const canAppImage = canBuild && has('mksquashfs', ['-version']) && process.env.FORGE_NETWORK_TESTS === '1';
+
+describe('given a hello project packed as an AppImage', { skip: !canAppImage && 'needs Linux, cmake, gtk4, mksquashfs and FORGE_NETWORK_TESTS=1 (downloads the runtime)' }, () => {
+  it('when run with --appimage-extract-and-run --greet, then it prints the greeting', () => {
+    const work = mkdtempSync(join(tmpdir(), 'forge-gen-linux-appimage-'));
+    try {
+      writeProjectFiles(generateProject(helloIr(), 'linux'), work);
+      for (const file of RUNTIME_FILES) copyFileSync(join(RUNTIME_DIR, file), join(work, file));
+      for (const args of [['-S', work, '-B', join(work, 'build')], ['--build', join(work, 'build')]]) {
+        assert.equal(spawnSync('cmake', args, { encoding: 'utf8' }).status, 0);
+      }
+      const root = join(work, 'root');
+      assert.equal(spawnSync('cmake', ['--install', join(work, 'build')], { env: { ...process.env, DESTDIR: root } }).status, 0);
+      const script = new URL('../../../scripts/linux-appimage.sh', import.meta.url).pathname;
+      const image = join(work, 'hello.AppImage');
+      const pack = spawnSync('bash', [script, root, 'hello', 'local.forge.hello', arch, image], { encoding: 'utf8' });
+      assert.equal(pack.status, 0, pack.stderr);
+      const result = spawnSync(image, ['--appimage-extract-and-run', '--greet'], { encoding: 'utf8' });
+      assert.equal(result.stdout, 'Hello, world!\n');
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+});
