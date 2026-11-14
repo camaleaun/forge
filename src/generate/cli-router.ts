@@ -35,6 +35,7 @@ ${help}
 }
 
 int run_cli(int argc, char** argv, Surface& out) {
+  (void)argc;
   const std::string_view arg = argv[1];
   if (arg == "--version") {
     std::puts(APP_VERSION);
