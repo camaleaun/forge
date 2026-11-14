@@ -9,14 +9,14 @@ import type { PackageInfo } from '../i18n/project.ts';
 import { loadProject } from './load.ts';
 import { applyStyles, parseStyles } from './styles.ts';
 
-// Loads the app in `dir` and returns its IR (with resolved styles) or every error found.
+// Loads the app in `dir` for `target` (default: the web preview; see src/ir/targets.ts) and returns its IR (with resolved styles) or every error found.
 export const ICON_FILE = 'AppIcon.icns';
 
 function isLink(path: string): boolean {
   try { return lstatSync(path).isSymbolicLink(); } catch { return false; }
 }
 
-export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: string[]; iconSvg?: string; glassLayers?: GlassLayers; pkg?: PackageInfo }> {
+export async function buildProjectIr(dir: string, target?: string): Promise<{ ir?: Ir; errors: string[]; iconSvg?: string; glassLayers?: GlassLayers; pkg?: PackageInfo }> {
   let project;
   try {
     project = await loadProject(dir);
@@ -25,7 +25,7 @@ export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: st
   }
   // An languages/ folder switches on translation of literal JSX text and of the window title.
   const translateLiterals = existsSync(join(resolve(dir), 'languages'));
-  const built = buildIr({ file: 'App.tsx', app: project.app, App: project.App, commands: project.commands, translateLiterals });
+  const built = buildIr({ file: 'App.tsx', app: project.app, App: project.App, commands: project.commands, translateLiterals, target });
   const css = parseStyles(project.cssFiles.map((file) => ({ file, source: readFileSync(file, 'utf8') })));
   const errors = [...built.errors, ...css.errors];
   if (!built.ir) return { errors };

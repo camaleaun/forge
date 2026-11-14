@@ -31,7 +31,7 @@ export async function start(options: StartOptions): Promise<void> {
     port: options.port,
     lan: !options.local,
     load: async () => {
-      const built = await buildProjectIr(projectDir);
+      const built = await buildProjectIr(projectDir, 'web');
       if (!built.ir || !built.pkg) return { errors: built.errors };
       // Language packs come from languages/*.lang, the same way `forge build` makes them.
       const i18n = loadProjectI18n(projectDir, built.ir, built.pkg);

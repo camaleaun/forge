@@ -1,6 +1,6 @@
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { RUNTIME_DIR, generateProject, runtimeFilesFor, writeProjectFiles } from '../gen/index.ts';
+import { RUNTIME_DIR, TARGETS, generateProject, runtimeFilesFor, writeProjectFiles } from '../gen/index.ts';
 import type { ProjectFiles } from '../gen/index.ts';
 import type { I18nGenOptions } from '../gen/i18n-options.ts';
 import { loadProjectI18n } from '../i18n/project.ts';
@@ -17,7 +17,12 @@ function hasLanguageSelect(node: Ir['root']): boolean {
 
 // Returns the process exit code; messages go to stderr.
 export async function build(options: BuildOptions): Promise<number> {
-  const { ir, errors, iconSvg, glassLayers, pkg } = await buildProjectIr(resolve(options.project));
+  // Generators exist for TARGETS only; windows, android and ios are valid names in TSX/CSS but build nothing yet.
+  if (!TARGETS.includes(options.target)) {
+    console.error(`error: unsupported target "${options.target}" (supported: ${TARGETS.join(', ')})`);
+    return 1;
+  }
+  const { ir, errors, iconSvg, glassLayers, pkg } = await buildProjectIr(resolve(options.project), options.target);
   if (!ir || !pkg) {
     for (const error of errors) console.error(`error: ${error}`);
     return 1;

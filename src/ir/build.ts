@@ -2,6 +2,8 @@ import { APP_NAME_PATTERN, CPP_KEYWORDS, ID_PATTERN, RESERVED_FLAGS, RESERVED_ID
 import { Message } from '../i18n/message.ts';
 import { Fragment } from './runtime.ts';
 import type { VNode } from './runtime.ts';
+import { DEFAULT_TARGET, TARGET_LIST, isTarget } from './targets.ts';
+import type { Target } from './targets.ts';
 import { State, registeredStates, traceHandler } from './state.ts';
 import { collectMessages, messageConflicts, toTextValue } from './text.ts';
 import type { Effect, Ir, Loc, Node, TextValue } from './types.ts';
@@ -14,6 +16,8 @@ export type BuildInput = {
   commands?: Record<string, CommandDef>;
   // Set when the project has an languages/ folder: literal JSX text and the window title become translatable messages.
   translateLiterals?: boolean;
+  // Which target the IR is for; <only>/<except> are resolved against it. Defaults to the preview target (web).
+  target?: string;
 };
 
 type Handler = () => void;
@@ -24,19 +28,6 @@ function isVNode(value: unknown): value is VNode {
   return typeof value === 'object' && value !== null && 'type' in value;
 }
 
-// Expands components and fragments into a flat list of intrinsic elements, strings and states.
-function expand(child: unknown): unknown[] {
-  if (Array.isArray(child)) return child.flatMap(expand);
-  if (isVNode(child)) {
-    if (child.type === Fragment) return child.children.flatMap(expand);
-    if (typeof child.type === 'function') {
-      return expand((child.type as (props: unknown) => unknown)({ ...child.props, children: child.children }));
-    }
-    return [{ ...child, children: child.children.flatMap(expand) }];
-  }
-  return [child];
-}
-
 export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
   const { file } = input;
   const errors: string[] = [];
@@ -45,6 +36,10 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
   const handlers: { id: string; effects: Effect[] }[] = [];
   const seenIds = new Set<string>();
   let preorder = 0;
+  const target = input.target ?? DEFAULT_TARGET;
+  if (!isTarget(target)) {
+    return { errors: [`unknown target "${target}" (expected ${TARGET_LIST})`] };
+  }
 
   if (!SEMVER.test(input.app.version)) errors.push(`package.json: version "${input.app.version}" must be semver x.y.z`);
   if (!APP_NAME_PATTERN.test(input.app.name)) errors.push(`package.json: name "${input.app.name}" must match ${APP_NAME_PATTERN}`);
@@ -73,6 +68,56 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
     }
     if (seenIds.has(id)) at(loc, `duplicate id "${id}"`);
     seenIds.add(id);
+  };
+
+  // Expands components, fragments and <only>/<except> into a flat list of intrinsic elements, strings and states.
+  const expand = (child: unknown, top = false): unknown[] => {
+    if (Array.isArray(child)) return child.flatMap((c) => expand(c, top));
+    if (!isVNode(child)) return [child];
+    if (child.type === Fragment) return child.children.flatMap((c) => expand(c, top));
+    if (typeof child.type === 'function') {
+      return expand((child.type as (props: unknown) => unknown)({ ...child.props, children: child.children }), top);
+    }
+    if (child.type === 'only' || child.type === 'except') return expandConditional(child, top);
+    return [{ ...child, children: child.children.flatMap((c) => expand(c)) }];
+  };
+
+  const expandConditional = (vnode: VNode, top: boolean): unknown[] => {
+    const tag = String(vnode.type);
+    const props = vnode.props ?? {};
+    const loc = (props['forge:loc'] as Loc | undefined) ?? [0, 0];
+    if (top) {
+      at(loc, `<${tag}> cannot wrap the root <window>`);
+      return [];
+    }
+    const names = Object.keys(props).filter((key) => key !== 'forge:loc' && key !== 'children');
+    const children = vnode.children.flatMap((c) => expand(c));
+    let valid = true;
+    if (names.length === 0) {
+      at(loc, `<${tag}> needs at least one target (${TARGET_LIST})`);
+      valid = false;
+    }
+    if (names.includes('only') || names.includes('except')) {
+      at(loc, `<${tag}> cannot mix only and except: nest one tag in the other`);
+      valid = false;
+    } else {
+      for (const name of names) {
+        if (!isTarget(name)) {
+          at(loc, `unknown target "${name}" in <${tag}> (expected ${TARGET_LIST})`);
+          valid = false;
+        } else if (props[name] !== true) {
+          at(loc, `<${tag}> targets are bare attributes, e.g. <${tag} ${name}>`);
+          valid = false;
+        }
+      }
+    }
+    if (children.some((c) => !isVNode(c))) {
+      at(loc, `<${tag}> can only contain elements, not text or state`);
+      valid = false;
+    }
+    if (!valid) return [];
+    const listed = names.includes(target as Target);
+    return (tag === 'only' ? listed : !listed) ? children : [];
   };
 
   const toNode = (vnode: VNode, isRoot: boolean): Node => {
@@ -125,9 +170,9 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
     return node;
   };
 
-  const roots = expand(input.App()).filter(isVNode);
+  const roots = expand(input.App(), true).filter(isVNode);
   if (roots.length !== 1) {
-    errors.push(`${file}: App() must return a single <window> element`);
+    if (errors.length === 0 || roots.length > 1) errors.push(`${file}: App() must return a single <window> element`);
     return { errors };
   }
   const root = toNode(roots[0], true);
