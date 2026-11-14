@@ -1,3 +1,4 @@
+import { APP_NAME_PATTERN, CPP_KEYWORDS, ID_PATTERN, RESERVED_FLAGS, RESERVED_ID_PREFIXES, SEMVER } from './names.ts';
 import { Fragment } from './runtime.ts';
 import type { VNode } from './runtime.ts';
 import { State, registeredStates, traceHandler } from './state.ts';
@@ -13,38 +14,64 @@ export type BuildInput = {
 
 type Handler = () => void;
 
+const KINDS = ['window', 'view', 'text', 'button'];
+
+function isVNode(value: unknown): value is VNode {
+  return typeof value === 'object' && value !== null && 'type' in value;
+}
+
 // Expands components and fragments into a flat list of intrinsic elements, strings and states.
 function expand(child: unknown): unknown[] {
   if (Array.isArray(child)) return child.flatMap(expand);
-  if (typeof child === 'object' && child !== null && 'type' in child) {
-    const vnode = child as VNode;
-    if (vnode.type === Fragment) return vnode.children.flatMap(expand);
-    if (typeof vnode.type === 'function') {
-      return expand((vnode.type as (props: unknown) => unknown)({ ...vnode.props, children: vnode.children }));
+  if (isVNode(child)) {
+    if (child.type === Fragment) return child.children.flatMap(expand);
+    if (typeof child.type === 'function') {
+      return expand((child.type as (props: unknown) => unknown)({ ...child.props, children: child.children }));
     }
-    return [{ ...vnode, children: vnode.children.flatMap(expand) }];
+    return [{ ...child, children: child.children.flatMap(expand) }];
   }
   return [child];
 }
 
 export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
+  const { file } = input;
   const errors: string[] = [];
+  const at = (loc: Loc, message: string) => errors.push(`${file}:${loc[0]}:${loc[1]}: ${message}`);
   const handlerIds = new Map<Handler, string>();
   const handlers: { id: string; effects: Effect[] }[] = [];
+  const seenIds = new Set<string>();
   let preorder = 0;
+
+  if (!SEMVER.test(input.app.version)) errors.push(`package.json: version "${input.app.version}" must be semver x.y.z`);
+  if (!APP_NAME_PATTERN.test(input.app.name)) errors.push(`package.json: name "${input.app.name}" must match ${APP_NAME_PATTERN}`);
 
   const handlerFor = (fn: Handler): string => {
     const known = handlerIds.get(fn);
     if (known) return known;
     const id = fn.name || `handler_${handlers.length}`;
     handlerIds.set(fn, id);
-    handlers.push({ id, effects: traceHandler(id, fn) });
+    try {
+      handlers.push({ id, effects: traceHandler(id, fn) });
+    } catch (error) {
+      errors.push((error as Error).message);
+    }
     return id;
   };
 
-  const toNode = (vnode: VNode): Node => {
+  const checkId = (id: string, loc: Loc) => {
+    if (!ID_PATTERN.test(id) || CPP_KEYWORDS.has(id)) {
+      at(loc, `invalid id "${id}" (must match ${ID_PATTERN} and not be a C++ keyword)`);
+    } else if (RESERVED_ID_PREFIXES.some((prefix) => prefix.test(id))) {
+      at(loc, `id "${id}" uses a name that forge reserves`);
+    }
+    if (seenIds.has(id)) at(loc, `duplicate id "${id}"`);
+    seenIds.add(id);
+  };
+
+  const toNode = (vnode: VNode, isRoot: boolean): Node => {
     const kind = vnode.type as Node['kind'];
     const props = vnode.props ?? {};
+    const loc = (props['forge:loc'] as Loc | undefined) ?? [0, 0];
     const index = preorder++;
     const node: Node = {
       kind,
@@ -52,35 +79,60 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
       classes: typeof props.class === 'string' ? props.class.split(/\s+/).filter(Boolean) : [],
       style: {},
       children: [],
-      loc: (props['forge:loc'] as Loc | undefined) ?? [0, 0],
+      loc,
     };
+    if (!KINDS.includes(String(kind))) {
+      at(loc, `unknown element <${String(kind)}> (expected ${KINDS.join(' | ')})`);
+      return node;
+    }
+    if (kind === 'window' && !isRoot) at(loc, '<window> can only be the root element');
+    if (typeof props.id === 'string') checkId(props.id, loc);
     if (typeof props.title === 'string') node.title = props.title;
-    if (typeof props.onClick === 'function') node.on = { click: handlerFor(props.onClick as Handler) };
+    if (props.onClick !== undefined) {
+      if (kind !== 'button') at(loc, 'onClick is only supported on <button>');
+      else if (typeof props.onClick === 'function') node.on = { click: handlerFor(props.onClick as Handler) };
+      else at(loc, 'onClick must be a function');
+    }
     if (kind === 'text' || kind === 'button') {
       const states = vnode.children.filter((child): child is State => child instanceof State);
-      node.content = states.length > 0
-        ? { kind: 'state', state: states[0].id }
-        : { kind: 'literal', value: vnode.children.map(String).join('') };
+      if (states.length > 0 && states.length < vnode.children.length) {
+        at(loc, `<${kind}> cannot mix text and state in v1`);
+      } else if (states.length > 0) {
+        node.content = { kind: 'state', state: states[0].id };
+      } else {
+        node.content = { kind: 'literal', value: vnode.children.map(String).join('') };
+      }
     } else {
-      node.children = vnode.children.map((child) => toNode(child as VNode));
+      node.children = vnode.children.filter(isVNode).map((child) => toNode(child, false));
     }
     return node;
   };
 
-  const [root] = expand(input.App());
-  const rootNode = toNode(root as VNode);
-  const commands = Object.entries(input.commands ?? {}).map(([flag, command]) => ({
-    flag,
-    description: command.description,
-    handler: handlerFor(command.run),
-  }));
-  const ir: Ir = {
-    irVersion: 1,
-    app: input.app,
-    root: rootNode,
-    states: registeredStates().map((s) => ({ id: s.id, initial: s.initial })),
-    handlers,
-    commands,
+  const roots = expand(input.App()).filter(isVNode);
+  if (roots.length !== 1) {
+    errors.push(`${file}: App() must return a single <window> element`);
+    return { errors };
+  }
+  const root = toNode(roots[0], true);
+  if (root.kind !== 'window') at(root.loc, 'the root element must be <window>');
+
+  const commands: Ir['commands'] = [];
+  for (const [flag, command] of Object.entries(input.commands ?? {})) {
+    if (!flag.startsWith('--')) errors.push(`${file}: command "${flag}" must start with "--"`);
+    else if (RESERVED_FLAGS.includes(flag) || flag.startsWith('--forge-')) errors.push(`${file}: command "${flag}" is reserved`);
+    else commands.push({ flag, description: command.description, handler: handlerFor(command.run) });
+  }
+
+  if (errors.length > 0) return { errors };
+  return {
+    ir: {
+      irVersion: 1,
+      app: input.app,
+      root,
+      states: registeredStates().map((s) => ({ id: s.id, initial: s.initial })),
+      handlers,
+      commands,
+    },
+    errors,
   };
-  return { ir, errors };
 }
