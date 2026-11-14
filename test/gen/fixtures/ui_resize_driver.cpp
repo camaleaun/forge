@@ -20,15 +20,18 @@ std::size_t g_next = 0;
 
 GtkWindow* the_window() {
   GListModel* windows = gtk_window_get_toplevels();
-  return GTK_WINDOW(g_list_model_get_item(windows, 0));
+  return g_list_model_get_n_items(windows) == 0 ? nullptr : GTK_WINDOW(g_list_model_get_item(windows, 0));
 }
 
+// The window's child is a plain frame (no padding) around the root: its size is the size of the content.
+GtkWidget* frame() { return the_window() ? gtk_window_get_child(the_window()) : nullptr; }
+
 void report() {
-  GtkWidget* root = gtk_window_get_child(the_window());
-  std::printf("%dx%d", gtk_widget_get_width(root), gtk_widget_get_height(root));
+  GtkWidget* root = gtk_widget_get_first_child(frame());
+  std::printf("%dx%d", gtk_widget_get_width(frame()), gtk_widget_get_height(frame()));
   for (GtkWidget* child = gtk_widget_get_first_child(root); child; child = gtk_widget_get_next_sibling(child)) {
     graphene_rect_t bounds;
-    if (!gtk_widget_compute_bounds(child, root, &bounds)) continue;
+    if (!gtk_widget_compute_bounds(child, frame(), &bounds)) continue;
     std::printf(" %d,%d,%d,%d", static_cast<int>(bounds.origin.x + 0.5f), static_cast<int>(bounds.origin.y + 0.5f),
                 static_cast<int>(bounds.size.width + 0.5f), static_cast<int>(bounds.size.height + 0.5f));
   }
@@ -37,6 +40,7 @@ void report() {
 }
 
 gboolean step(gpointer) {
+  if (!frame() || gtk_widget_get_width(frame()) <= 0) return G_SOURCE_CONTINUE;  // not shown yet: try again
   report();
   if (g_next >= g_sizes.size()) std::exit(0);
   const auto [width, height] = g_sizes[g_next++];
@@ -48,7 +52,7 @@ gboolean step(gpointer) {
   } else {
     gtk_window_set_default_size(the_window(), width, height);
   }
-  g_timeout_add(800, step, nullptr);
+  g_timeout_add(1200, step, nullptr);
   return G_SOURCE_REMOVE;
 }
 
@@ -59,7 +63,7 @@ int main(int argc, char** argv) {
     int width = 0, height = 0;
     if (std::sscanf(argv[i], "%dx%d", &width, &height) == 2) g_sizes.emplace_back(width, height);
   }
-  g_timeout_add(1500, step, nullptr);
+  g_timeout_add(500, step, nullptr);
   char* only_program[] = {argv[0], nullptr};
   return forge_app::run_ui(1, only_program);
 }

@@ -112,7 +112,11 @@ void activate(GtkApplication* app, gpointer) {
 
   GtkWidget* w_window_0 = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
   gtk_widget_set_name(w_window_0, "w_window_0");
-  gtk_window_set_child(GTK_WINDOW(window), w_window_0);
+  GtkWidget* frame = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  gtk_widget_set_hexpand(w_window_0, TRUE);
+  gtk_widget_set_vexpand(w_window_0, TRUE);
+  gtk_box_append(GTK_BOX(frame), w_window_0);
+  gtk_window_set_child(GTK_WINDOW(window), frame);
 
   GtkWidget* w_text_1 = gtk_label_new("Press the button");
   gtk_label_set_xalign(GTK_LABEL(w_text_1), 0.0f);

@@ -64,6 +64,11 @@ describe('given the Linux UI of an app with variants', () => {
     assert.ok(linux.includes('"layout", G_CALLBACK(on_surface_layout)'));
     assert.ok(linux.includes('gtk_widget_get_width(content)'));
   });
+  it('when there are variants, then the root sits in a plain frame, whose size (no padding) is the size @media measures', () => {
+    assert.ok(linux.includes('gtk_box_append(GTK_BOX(frame), w_window_0);'));
+    assert.ok(linux.includes('gtk_window_set_child(GTK_WINDOW(window), frame);'));
+    assert.ok(!generateLinuxUi(helloIr(), 'dev.forge.hello').includes('frame'));
+  });
   it('when the window opens, then the variants are applied once for its size, before it is shown', () => {
     assert.match(linux, /g_apply\(320, 120\);\n {2}gtk_window_present/);
   });

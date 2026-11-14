@@ -33,6 +33,10 @@ function cssProps(set: Pick<Changes, 'padding' | 'background' | 'radius' | 'colo
   return props;
 }
 
+function hasVariants(node: LayoutNode): boolean {
+  return node.variants !== undefined || node.children.some(hasVariants);
+}
+
 function hasSelect(node: Node): boolean {
   return node.kind === 'select' || node.children.some(hasSelect);
 }
@@ -44,6 +48,7 @@ class Emitter {
   readonly css: string[] = [];
   readonly handlers: (string | undefined)[] = [];
   readonly variantLines: string[] = [];  // the body of the lambda that applies @media variants for a window of w by h
+  framed = false;  // the root sits in a plain frame (there are @media variants)
   pulses = false;  // an indeterminate bar needs the pulse timer callback
 
   constructor(ir: Ir, i18n: boolean) {
@@ -193,7 +198,16 @@ class Emitter {
     const betweenSpacers = node.justify === 'space-between' && node.children.length > 1;
     this.emit(`GtkWidget* ${v} = gtk_box_new(${orientation}, ${node.justify === 'space-between' ? 0 : node.gap});`);
     this.style(node, v);
-    if (parent === undefined) this.emit(`gtk_window_set_child(GTK_WINDOW(window), ${v});`);
+    if (parent === undefined && this.framed) {
+      // @media measures the window's content: a plain box around the root has no padding, so its size is exact.
+      this.emit(
+        'GtkWidget* frame = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);',
+        `gtk_widget_set_hexpand(${v}, TRUE);`,
+        `gtk_widget_set_vexpand(${v}, TRUE);`,
+        `gtk_box_append(GTK_BOX(frame), ${v});`,
+        'gtk_window_set_child(GTK_WINDOW(window), frame);',
+      );
+    } else if (parent === undefined) this.emit(`gtk_window_set_child(GTK_WINDOW(window), ${v});`);
     else this.attach(node, v, parent, holder!, first);
     // center and end sit in an inner box that takes the free space and aligns its content.
     let children = v;
@@ -449,6 +463,7 @@ export function generateLinuxUi(ir: Ir, appId: string, i18n?: I18nGenOptions): s
   const width = layout.width ?? DEFAULT_WIDTH;
   const height = layout.height ?? DEFAULT_HEIGHT;
   const emitter = new Emitter(ir, translated);
+  emitter.framed = hasVariants(layout);
   emitter.node(layout, undefined, undefined, true);
   const cases = emitter.handlers
     .map((handler, tag) => (handler === undefined ? '' : `    case ${tag}:\n      action_${handler}(g_surface);\n      break;\n`))
