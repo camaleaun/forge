@@ -36,7 +36,7 @@ describe('given a generated i18n hello project on Linux', { skip: !canBuild && S
     dir = mkdtempSync(join(tmpdir(), 'forge-gen-linux-i18n-cmake-'));
     const options = optionsFor();
     writeProjectFiles(generateProject(helloI18nIr(), 'linux', { i18n: options }), dir);
-    for (const file of runtimeFilesFor(options, 'linux')) copyFileSync(join(RUNTIME_DIR, file), join(dir, file));
+    for (const file of runtimeFilesFor(options, 'linux', helloI18nIr())) copyFileSync(join(RUNTIME_DIR, file), join(dir, file));
     const configure = spawnSync('cmake', ['-S', dir, '-B', join(dir, 'build'), '-G', 'Unix Makefiles'], { encoding: 'utf8' });
     assert.equal(configure.status, 0, configure.stdout + configure.stderr);
     const build = spawnSync('cmake', ['--build', join(dir, 'build')], { encoding: 'utf8' });
@@ -68,5 +68,31 @@ describe('given a generated i18n hello project on Linux', { skip: !canBuild && S
     const ldd = spawnSync('ldd', [binary], { encoding: 'utf8' }).stdout;
     assert.match(ldd, /libsoup-3/);
     assert.match(ldd, /libgtk-4/);
+  });
+});
+
+describe('given a generated i18n hello on Linux with downloads off', { skip: !canBuild && SKIP }, () => {
+  let offDir = '';
+  before(() => {
+    offDir = mkdtempSync(join(tmpdir(), 'forge-gen-linux-i18n-off-'));
+    const options = optionsFor({ download: false });
+    writeProjectFiles(generateProject(helloI18nIr(), 'linux', { i18n: options }), offDir);
+    for (const file of runtimeFilesFor(options, 'linux', helloI18nIr())) copyFileSync(join(RUNTIME_DIR, file), join(offDir, file));
+    const configure = spawnSync('cmake', ['-S', offDir, '-B', join(offDir, 'build'), '-G', 'Unix Makefiles'], { encoding: 'utf8' });
+    assert.equal(configure.status, 0, configure.stdout + configure.stderr);
+    const build = spawnSync('cmake', ['--build', join(offDir, 'build')], { encoding: 'utf8' });
+    assert.equal(build.status, 0, build.stdout + build.stderr);
+  });
+  after(() => rmSync(offDir, { recursive: true, force: true }));
+
+  it('when its libraries are listed, then libsoup-3 is not linked, and its size is printed', () => {
+    const off = join(offDir, 'build/hello');
+    console.log(`# hello Linux i18n binary size, downloads off: ${statSync(off).size} bytes`);
+    assert.doesNotMatch(spawnSync('ldd', [off], { encoding: 'utf8' }).stdout, /libsoup/);
+  });
+  it('when --forge-fetch-lang is run, then it says downloads are disabled in this build', () => {
+    const result = spawnSync(join(offDir, 'build/hello'), ['--forge-fetch-lang', 'pt-BR'], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', FORGE_I18N_CACHE_DIR: join(offDir, 'empty') } });
+    assert.match(result.stderr, /downloads are disabled in this build/);
+    assert.equal(result.status, 1);
   });
 });

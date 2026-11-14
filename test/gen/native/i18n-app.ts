@@ -68,6 +68,11 @@ export interface App {
 const compiler = onLinux ? 'g++' : 'clang++';
 const pkgConfig = (mode: string): string[] => spawnSync('pkg-config', [mode, ...LINUX_PACKAGES], { encoding: 'utf8' }).stdout.split(/\s+/).filter(Boolean);
 
+const httpSources = (): [string, string[]][] => [
+  [join(RUNTIME_DIR, 'http_common.cpp'), []],
+  onLinux ? [join(RUNTIME_DIR, 'http_linux.cpp'), pkgConfig('--cflags')] : [join(RUNTIME_DIR, 'http_macos.mm'), ['-fobjc-arc']],
+];
+
 // Generates the project and links it with main.cpp, the i18n runtime and a UI stub (clang++, no cmake).
 export function buildApp(ir: Ir, options: I18nGenOptions, uiStub = 'ui_stub.cpp'): App {
   const dir = mkdtempSync(join(tmpdir(), 'forge-i18n-app-'));
@@ -81,8 +86,7 @@ export function buildApp(ir: Ir, options: I18nGenOptions, uiStub = 'ui_stub.cpp'
     [join(RUNTIME_DIR, 'i18n.cpp'), []],
     [join(RUNTIME_DIR, 'i18n_common.cpp'), []],
     onLinux ? [join(RUNTIME_DIR, 'i18n_linux.cpp'), pkgConfig('--cflags')] : [join(RUNTIME_DIR, 'i18n_macos.mm'), ['-fobjc-arc']],
-    [join(RUNTIME_DIR, 'http_common.cpp'), []],
-    onLinux ? [join(RUNTIME_DIR, 'http_linux.cpp'), pkgConfig('--cflags')] : [join(RUNTIME_DIR, 'http_macos.mm'), ['-fobjc-arc']],
+    ...(options.download ? httpSources() : []),
     [join(ROOT, 'test/gen/fixtures', uiStub), onLinux ? pkgConfig('--cflags') : []],
   ];
   const objects: string[] = [];

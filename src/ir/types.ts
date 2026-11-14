@@ -54,4 +54,7 @@ export type Ir = {
   messages: { context?: string; text: string; plural?: string }[];
   handlers: { id: string; effects: Effect[] }[];
   commands: { flag: string; description: TextValue; handler: string }[];
+  // Runtime libraries the app source asks for. `remote` (the HTTP library) has no source syntax yet: a future
+  // remote effect sets it, and the build then carries the library even without language packs.
+  uses?: { remote?: boolean };
 };

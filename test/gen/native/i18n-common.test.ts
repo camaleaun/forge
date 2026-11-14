@@ -170,3 +170,31 @@ describe('given the portable language loader and a fake platform adapter', { ski
     });
   });
 });
+
+describe('given the portable language loader built without the HTTP library (downloads off)', { skip: !compiler && 'no C++ compiler' }, () => {
+  let plain = '';
+  let plainDir = '';
+  before(() => {
+    plainDir = mkdtempSync(join(tmpdir(), 'forge-i18n-nohttp-'));
+    writeProjectFiles(generateProject(pluralIr(), 'macos', { i18n: optionsFor({ download: false }) }), plainDir);
+    const flags = ['-std=c++20', '-Wall', '-Wextra', '-Werror', '-fno-exceptions', '-fno-rtti', '-I', plainDir, '-I', RUNTIME_DIR];
+    const sources = [join(plainDir, 'messages.cpp'), join(RUNTIME_DIR, 'i18n.cpp'), join(RUNTIME_DIR, 'i18n_common.cpp'), join(ROOT, 'test/gen/fixtures/platform_fake.cpp')];
+    plain = join(plainDir, 'driver');
+    const built = spawnSync(compiler as string, [...flags, ...sources, '-o', plain], { encoding: 'utf8' });
+    assert.equal(built.status, 0, built.stderr);
+    writeFileSync(join(plainDir, 'pt.lang'), PT_PACK);
+  });
+  after(() => rmSync(plainDir, { recursive: true, force: true }));
+  const run = (script: string[]) =>
+    spawnSync(plain, [], { input: script.join('\n') + '\n', encoding: 'utf8', env: { PATH: process.env.PATH ?? '' }, timeout: 20000 });
+
+  it('when --forge-fetch-lang needs a download, then it fails with a clear message and nothing is fetched', () => {
+    const result = run([`cachebase ${join(plainDir, 'cache')}`, `packfile ${join(plainDir, 'pt.lang')}`, 'fetch pt-BR', 'urls']);
+    assert.match(result.stderr, /downloads are disabled in this build/);
+    assert.deepEqual(result.stdout.trim().split('\n'), ['exit 1']);
+  });
+  it('when a missing language is chosen, then it is offline at once and no job is started', () => {
+    const result = run([`cachebase ${join(plainDir, 'cache')}`, `packfile ${join(plainDir, 'pt.lang')}`, 'choose pt-BR', 'jobs', 'offline pt-BR']);
+    assert.deepEqual(result.stdout.trim().split('\n'), ['0', 'yes']);
+  });
+});

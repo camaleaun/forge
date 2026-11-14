@@ -16,8 +16,16 @@
 
 #include "i18n.hpp"
 #include "i18n_loader.hpp"
-#include "http.hpp"
 #include "i18n_platform.hpp"
+
+// FORGE_HTTP (defined by the generated forge_app.hpp) says the app carries the HTTP library: without it
+// nothing here can download, and the HTTP code is not compiled.
+#if __has_include("forge_app.hpp")
+#include "forge_app.hpp"
+#endif
+#ifdef FORGE_HTTP
+#include "http.hpp"
+#endif
 
 namespace forge_app {
 namespace {
@@ -47,6 +55,7 @@ void notify() {
   if (g_hook) g_hook();
 }
 
+#ifdef FORGE_HTTP
 std::string lower(std::string text) {
   for (char& c : text) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   return text;
@@ -69,13 +78,24 @@ bool url_allowed(const std::string& url) {
   host = lower(host);
   return host == "127.0.0.1" || host == "localhost" || host == "::1";
 }
+#endif
 
 void store_language(const std::string& value) { platform::write_setting("language", value); }
 
+#ifdef FORGE_HTTP
+using DownloadProgress = forge::remote::Progress;
+#else
+using DownloadProgress = void (*)(void* context, std::size_t received, std::size_t total);
+#endif
+
 bool download_allowed() {
+#ifdef FORGE_HTTP
   if (!DOWNLOAD_ENABLED) return false;
   std::string value;
   return !platform::read_setting("download", value) || value != "false";
+#else
+  return false;
+#endif
 }
 
 const PackDef* find_pack(const std::string& tag) {
@@ -154,6 +174,7 @@ bool load_cached(const PackDef& pack, forge_i18n::Pack& out) {
   return false;
 }
 
+#ifdef FORGE_HTTP
 // mkdir -p
 bool make_dirs(const std::string& path) {
   for (std::size_t i = 1; i <= path.size(); ++i) {
@@ -193,7 +214,7 @@ bool store_in_cache(const PackDef& pack, const std::string& bytes) {
 }
 
 // One blocking GET. Accepts only 200 with exactly the expected size and the pinned sha256.
-bool download_pack(const PackDef& pack, std::string& error, forge::remote::Progress progress = nullptr, void* context = nullptr) {
+bool download_pack(const PackDef& pack, std::string& error, DownloadProgress progress = nullptr, void* context = nullptr) {
   std::string base = env_string("FORGE_I18N_BASE_URL");
   if (base.empty()) base = PACK_BASE_URL;
   const std::string url = base + pack.file;
@@ -236,6 +257,12 @@ bool download_pack(const PackDef& pack, std::string& error, forge::remote::Progr
   }
   return true;
 }
+#else
+bool download_pack(const PackDef&, std::string& error, DownloadProgress = nullptr, void* = nullptr) {
+  error = "downloads are disabled in this build";
+  return false;
+}
+#endif
 
 bool apply_cached(const std::string& tag) {
   const PackDef* pack = find_pack(tag);
@@ -437,7 +464,11 @@ int run_fetch_lang(const char* requested) {
   forge_i18n::Pack cached;
   if (pack && !load_cached(*pack, cached)) {
     if (!download_allowed()) {
+#ifdef FORGE_HTTP
       std::fprintf(stderr, "forge: downloading language packs is disabled for this app\n");
+#else
+      std::fprintf(stderr, "forge: downloads are disabled in this build\n");
+#endif
       return 1;
     }
     std::string error;

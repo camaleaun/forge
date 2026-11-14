@@ -10,7 +10,7 @@ Generated apps are tiny because forge copies a runtime file into the build only 
 
 ## forge::remote (HTTP)
 
-`forge::remote` is a small blocking HTTP client for native apps. Today it is built into apps that have language packs, which download them with it. It uses NSURLSession on macOS and libsoup 3 on Linux (a Windows adapter will use WinHTTP). The files are `http.hpp` (the API), `http_common.cpp` (the policy, shared by all platforms), `http_macos.mm` and `http_linux.cpp` (the adapters), and a private `http_adapter.hpp` between them.
+`forge::remote` is a small blocking HTTP client for native apps. HTTP is only compiled into apps that use it: today that means apps with language packs whose downloads are enabled (`forge.i18n.download` is not `false`). With downloads off, the build has no HTTP files and no libsoup or NSURLSession requirement, and `--forge-fetch-lang` answers "downloads are disabled in this build". It uses NSURLSession on macOS and libsoup 3 on Linux (a Windows adapter will use WinHTTP). The files are `http.hpp` (the API), `http_common.cpp` (the policy, shared by all platforms), `http_macos.mm` and `http_linux.cpp` (the adapters), and a private `http_adapter.hpp` between them.
 
 ```cpp
 #include "http.hpp"

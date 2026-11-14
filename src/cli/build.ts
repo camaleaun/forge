@@ -64,7 +64,7 @@ export async function build(options: BuildOptions): Promise<number> {
   }
   mkdirSync(options.out, { recursive: true });
   writeProjectFiles(files, options.out);
-  for (const name of runtimeFilesFor(i18nOptions, options.target)) copyFileSync(join(RUNTIME_DIR, name), join(options.out, name));
+  for (const name of runtimeFilesFor(i18nOptions, options.target, ir)) copyFileSync(join(RUNTIME_DIR, name), join(options.out, name));
   if (i18n.packs.length > 0) {
     mkdirSync(join(options.out, 'lang'), { recursive: true });
     for (const pack of i18n.packs) writeFileSync(join(options.out, 'lang', pack.file), pack.text);

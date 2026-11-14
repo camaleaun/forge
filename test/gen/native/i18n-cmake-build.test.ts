@@ -20,7 +20,7 @@ function build(ir: Ir, i18n: I18nGenOptions | undefined): string {
   const dir = mkdtempSync(join(tmpdir(), 'forge-gen-i18n-cmake-'));
   dirs.push(dir);
   writeProjectFiles(generateProject(ir, 'macos', { i18n }), dir);
-  for (const file of runtimeFilesFor(i18n)) copyFileSync(join(RUNTIME_DIR, file), join(dir, file));
+  for (const file of runtimeFilesFor(i18n, 'macos', ir)) copyFileSync(join(RUNTIME_DIR, file), join(dir, file));
   const configure = spawnSync('cmake', ['-S', dir, '-B', join(dir, 'build'), '-G', 'Unix Makefiles'], { encoding: 'utf8' });
   assert.equal(configure.status, 0, configure.stdout + configure.stderr);
   const made = spawnSync('cmake', ['--build', join(dir, 'build')], { encoding: 'utf8' });
@@ -30,12 +30,14 @@ function build(ir: Ir, i18n: I18nGenOptions | undefined): string {
 
 let withI18n = '';
 let without = '';
+let offline = '';
 let cacheDir = '';
 
 describe('given an i18n hello built with cmake', { skip: !canBuild && 'needs macOS and cmake' }, () => {
   before(() => {
     withI18n = build(helloI18nIr(), optionsFor({ menu: false }));
     without = build(helloIr(), undefined);
+    offline = build(helloI18nIr(), optionsFor({ menu: false, download: false }));
     cacheDir = mkdtempSync(join(tmpdir(), 'forge-gen-i18n-cache-'));
     dirs.push(cacheDir);
     writeFileSync(join(cacheDir, ptName()), PT_PACK);
@@ -58,6 +60,14 @@ describe('given an i18n hello built with cmake', { skip: !canBuild && 'needs mac
     const [a, b] = [statSync(withI18n).size, statSync(without).size];
     console.log(`# hello with i18n (menu off, dropdown): ${a} bytes; without i18n: ${b} bytes; delta ${a - b} bytes`);
     assert.ok(a < MAX_I18N_BYTES, `${a} bytes is not under ${MAX_I18N_BYTES}`);
+  });
+  it('when downloads are off, then the binary carries no HTTP client and is smaller', () => {
+    const symbols = spawnSync('nm', ['-u', offline], { encoding: 'utf8' }).stdout + spawnSync('strings', [offline], { encoding: 'utf8' }).stdout;
+    assert.doesNotMatch(symbols, /NSURLSession/);
+    assert.match(spawnSync('nm', ['-u', withI18n], { encoding: 'utf8' }).stdout + spawnSync('strings', [withI18n], { encoding: 'utf8' }).stdout, /NSURLSession/);
+    const [a, b] = [statSync(offline).size, statSync(withI18n).size];
+    console.log(`# hello with i18n, downloads off: ${a} bytes; downloads on: ${b} bytes`);
+    assert.ok(a < b);
   });
   it('when the plain app is generated, then neither its sources nor its runtime files mention i18n', () => {
     assert.deepEqual(runtimeFilesFor(undefined), RUNTIME_FILES);

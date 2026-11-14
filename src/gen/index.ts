@@ -31,15 +31,24 @@ export const RUNTIME_FILES = ['main.cpp', 'cli_surface.hpp'];
 export const HTTP_RUNTIME_FILES_MACOS = ['http.hpp', 'http_adapter.hpp', 'http_common.cpp', 'http_macos.mm'];
 export const HTTP_RUNTIME_FILES_LINUX = ['http.hpp', 'http_adapter.hpp', 'http_common.cpp', 'http_linux.cpp'];
 // The i18n runtime is copied only for apps that have language packs.
-export const I18N_RUNTIME_FILES = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_platform.hpp', 'i18n_macos.mm', ...HTTP_RUNTIME_FILES_MACOS];
+export const I18N_RUNTIME_FILES = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_platform.hpp', 'i18n_macos.mm'];
 // Linux shares the loader core and swaps the platform adapter (i18n_platform.hpp is its interface).
-export const I18N_RUNTIME_FILES_LINUX = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_platform.hpp', 'i18n_linux.cpp', ...HTTP_RUNTIME_FILES_LINUX];
+export const I18N_RUNTIME_FILES_LINUX = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_platform.hpp', 'i18n_linux.cpp'];
 export function hasPacks(i18n: I18nGenOptions | undefined): i18n is I18nGenOptions {
   return i18n !== undefined && i18n.packs.length > 0;
 }
-export function runtimeFilesFor(i18n?: I18nGenOptions, target = 'macos'): string[] {
-  if (!hasPacks(i18n)) return RUNTIME_FILES;
-  return [...RUNTIME_FILES, ...(target === 'linux' ? I18N_RUNTIME_FILES_LINUX : I18N_RUNTIME_FILES)];
+// The one decision for the HTTP library: language packs that may be downloaded, or an app source that uses a
+// remote feature (none yet: `ir.uses.remote` is the hook a future remote effect sets).
+export function needsHttp(ir: Ir | undefined, i18n: I18nGenOptions | undefined): boolean {
+  return (hasPacks(i18n) && i18n.download) || ir?.uses?.remote === true;
+}
+export function runtimeFilesFor(i18n?: I18nGenOptions, target = 'macos', ir?: Ir): string[] {
+  const linux = target === 'linux';
+  return [
+    ...RUNTIME_FILES,
+    ...(hasPacks(i18n) ? (linux ? I18N_RUNTIME_FILES_LINUX : I18N_RUNTIME_FILES) : []),
+    ...(needsHttp(ir, i18n) ? (linux ? HTTP_RUNTIME_FILES_LINUX : HTTP_RUNTIME_FILES_MACOS) : []),
+  ];
 }
 export const RUNTIME_DIR = new URL('./runtime/', import.meta.url).pathname;
 
@@ -58,13 +67,14 @@ export function generateProject(source: Ir, target: string, options: { iconSvg?:
   if (!TARGETS.includes(target)) throw new Error(`unsupported target "${target}" (supported: ${TARGETS.join(', ')})`);
   if (ir.app.icon && options.iconSvg === undefined) throw new Error('the app has an icon but no icon.svg source was given');
   const i18n = hasPacks(options.i18n) ? options.i18n : undefined;
-  if (target === 'linux') return generateLinuxProject(ir, i18n, options.appId ?? appIdFor(ir.app, 'linux'), options.iconSvg, options.meta ?? {});
+  const http = needsHttp(ir, i18n);
+  if (target === 'linux') return generateLinuxProject(ir, i18n, http, options.appId ?? appIdFor(ir.app, 'linux'), options.iconSvg, options.meta ?? {});
   const files: ProjectFiles = new Map([
-    ['forge_app.hpp', generateAppHeader(ir, !!i18n)],
+    ['forge_app.hpp', generateAppHeader(ir, !!i18n, http)],
     ['actions.cpp', generateActionsCpp(ir, !!i18n)],
     ['cli_router.cpp', generateCliRouter(ir, !!i18n)],
     ['ui_macos.mm', generateMacosUi(ir, i18n)],
-    ['CMakeLists.txt', generateCmake(ir, !!i18n, { glassIcon: options.glassLayers !== undefined })],
+    ['CMakeLists.txt', generateCmake(ir, !!i18n, { glassIcon: options.glassLayers !== undefined, http })],
     ['dmg/setup.applescript', generateDmgSetupScript(ir)],
     ['dmg/background.png', dmgBackground(1)],
     ['dmg/background@2x.png', dmgBackground(2)],
@@ -75,13 +85,13 @@ export function generateProject(source: Ir, target: string, options: { iconSvg?:
   return files;
 }
 
-function generateLinuxProject(ir: Ir, i18n: I18nGenOptions | undefined, appId: string, iconSvg: string | undefined, meta: PackageMeta): ProjectFiles {
+function generateLinuxProject(ir: Ir, i18n: I18nGenOptions | undefined, http: boolean, appId: string, iconSvg: string | undefined, meta: PackageMeta): ProjectFiles {
   const files: ProjectFiles = new Map([
-    ['forge_app.hpp', generateAppHeader(ir, !!i18n)],
+    ['forge_app.hpp', generateAppHeader(ir, !!i18n, http)],
     ['actions.cpp', generateActionsCpp(ir, !!i18n)],
     ['cli_router.cpp', generateCliRouter(ir, !!i18n)],
     ['ui_linux.cpp', generateLinuxUi(ir, appId, i18n)],
-    ['CMakeLists.txt', generateCmakeLinux(ir, !!i18n, { appId, icon: !!ir.app.icon, meta })],
+    ['CMakeLists.txt', generateCmakeLinux(ir, !!i18n, { http, appId, icon: !!ir.app.icon, meta })],
     [`${appId}.desktop`, generateDesktopEntry(ir, appId, meta)],
     [`${appId}.metainfo.xml`, generateMetainfo(ir, appId, meta)],
     ['snap/snapcraft.yaml', generateSnapcraft(ir, appId, meta, i18n)],

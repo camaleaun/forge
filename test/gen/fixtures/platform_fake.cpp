@@ -12,7 +12,12 @@
 #include <vector>
 
 #include "i18n_loader.hpp"
+#if __has_include("forge_app.hpp")
+#include "forge_app.hpp"
+#endif
+#ifdef FORGE_HTTP
 #include "http_adapter.hpp"
+#endif
 #include "i18n_platform.hpp"
 
 namespace {
@@ -33,7 +38,7 @@ std::vector<Job> g_jobs;
 std::vector<Job> g_worked;  // jobs whose work ran but whose `done` has not
 std::vector<Job> g_posts;   // what the worker posted to the main thread (done is unused)
 
-std::string slurp(const std::string& path) {
+[[maybe_unused]] std::string slurp(const std::string& path) {
   std::ifstream in(path, std::ios::binary);
   std::ostringstream out;
   out << in.rdbuf();
@@ -64,6 +69,7 @@ void run_in_background(void (*work)(void*), void (*done)(void*), void* context) 
 
 }  // namespace forge_app::platform
 
+#ifdef FORGE_HTTP
 // The fake sits under the real HTTP policy (http_common.cpp): it only plays the server, one exchange at a time.
 namespace forge::remote::adapter {
 
@@ -93,6 +99,7 @@ Error exchange(const Exchange& ex) {
 }
 
 }  // namespace forge::remote::adapter
+#endif
 
 namespace {
 

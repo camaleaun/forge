@@ -8,6 +8,8 @@ const q = cppString;
 export interface CmakeOptions {
   // AppIcon.icon (Liquid Glass) sits next to the sources: compile it with Xcode 26's actool when available.
   glassIcon?: boolean;
+  // Compile the HTTP library (default: when i18n is on). See needsHttp in index.ts.
+  http?: boolean;
 }
 
 // Configure-time lookup of actool and its version (short-bundle-version follows the Xcode version, e.g. 26.6).
@@ -71,7 +73,8 @@ export function generateCmake(ir: Ir, i18n = false, options: CmakeOptions = {}):
   // The .icns goes to Contents/Resources and Info.plist names it (without the extension).
   const glass = options.glassIcon === true;
   const iconResource = icon && !glass ? `set_source_files_properties(${icon} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)\n` : '';
-  const i18nSources = i18n ? '\n  messages.cpp\n  i18n.cpp\n  i18n_common.cpp\n  i18n_macos.mm\n  http_common.cpp\n  http_macos.mm' : '';
+  const http = options.http ?? i18n; // the HTTP library only for apps that need it
+  const i18nSources = (i18n ? '\n  messages.cpp\n  i18n.cpp\n  i18n_common.cpp\n  i18n_macos.mm' : '') + (http ? '\n  http_common.cpp\n  http_macos.mm' : '');
   // i18n apps carry the Foundation loader: -Oz, no Objective-C exception tables and no local symbols keep them small.
   const optimize = i18n ? '-Oz' : '-Os';
   const objcxxFlags = i18n ? '-fobjc-arc -fno-objc-exceptions' : '-fobjc-arc';
