@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { encodeLang } from '../../../src/i18n/lang.ts';
-import { buildApp, canRun, optionsFor, PT_PACK, ptName, pluralIr, removeDir, run, sha256, tempDir, type App } from './i18n-app.ts';
+import { buildApp, canRun, skipReason, optionsFor, PT_PACK, ptName, pluralIr, removeDir, run, sha256, tempDir, type App } from './i18n-app.ts';
 
 let app: App;
 let cache = '';
@@ -20,7 +20,7 @@ afterEach(() => removeDir(cache));
 
 const go = (args: string[], env: Record<string, string> = {}) => run(app, args, { FORGE_I18N_CACHE_DIR: cache, ...env });
 
-describe('given an i18n app with the pt-BR pack in the cache', { skip: !canRun && 'needs macOS and clang++' }, () => {
+describe('given an i18n app with the pt-BR pack in the cache', { skip: !canRun && skipReason }, () => {
   it('when run in an English locale, then --greet prints English', () => {
     const result = go(['--greet']);
     assert.equal(result.stdout, 'Hello, world!\n');
@@ -85,7 +85,7 @@ describe('given an i18n app with the pt-BR pack in the cache', { skip: !canRun &
   });
 });
 
-describe('given a cache that cannot be trusted', { skip: !canRun && 'needs macOS and clang++' }, () => {
+describe('given a cache that cannot be trusted', { skip: !canRun && skipReason }, () => {
   it('when the cached file is corrupted, then it is ignored (English) and deleted', () => {
     writeFileSync(join(cache, ptName()), PT_PACK.replace('Olá', 'Oi'));
     const result = go(['--lang', 'pt-BR', '--greet']);
@@ -105,7 +105,7 @@ describe('given a cache that cannot be trusted', { skip: !canRun && 'needs macOS
   });
 });
 
-describe('given plural and context messages', { skip: !canRun && 'needs macOS and clang++' }, () => {
+describe('given plural and context messages', { skip: !canRun && skipReason }, () => {
   const lines = (env: Record<string, string>) => [0, 1, 3].map((n) => go([`--files${n}`], env).stdout.trim());
   it('when run in English, then 0 and 3 are plural and 1 is singular', () => {
     assert.deepEqual(lines({}), ['0 files', '1 file', '3 files']);
@@ -120,7 +120,7 @@ describe('given plural and context messages', { skip: !canRun && 'needs macOS an
   });
 });
 
-describe('given a pack that translates only the greeting', { skip: !canRun && 'needs macOS and clang++' }, () => {
+describe('given a pack that translates only the greeting', { skip: !canRun && skipReason }, () => {
   it('when a plural message has no entry, then the English plural rule applies (singular only for 1)', () => {
     const pack = encodeLang({ tag: 'pt-BR', app: 'hello', version: '0.1.0', entries: [{ text: 'Hello, world!', forms: ['Olá, mundo!'] }] });
     const small = buildApp(pluralIr(), optionsFor({ packs: [{ tag: 'pt-BR', file: 'x.lang', sha256: sha256(pack), size: Buffer.byteLength(pack) }] }));

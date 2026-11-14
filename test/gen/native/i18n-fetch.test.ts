@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
 import { join } from 'node:path';
-import { buildApp, canRun, optionsFor, PT_FILE, PT_PACK, ptName, removeDir, run, runAsync, tempDir, pluralIr, type App } from './i18n-app.ts';
+import { buildApp, canRun, skipReason, optionsFor, PT_FILE, PT_PACK, ptName, removeDir, run, runAsync, tempDir, pluralIr, type App } from './i18n-app.ts';
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void;
 let app: App;
@@ -47,7 +47,7 @@ afterEach(() => removeDir(join(cache, '..')));
 const env = (extra: Record<string, string> = {}) => ({ FORGE_I18N_CACHE_DIR: cache, FORGE_I18N_BASE_URL: base, ...extra });
 const cached = () => (existsSync(cache) ? readdirSync(cache) : []);
 
-describe('given a fake server that serves the pt-BR pack', { skip: !canRun && 'needs macOS and clang++' }, () => {
+describe('given a fake server that serves the pt-BR pack', { skip: !canRun && skipReason }, () => {
   it('when --forge-fetch-lang pt-BR runs, then it prints the confirmation, exits 0 and writes the cache file', async () => {
     const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());
     assert.equal(result.stdout, 'Language pack pt-BR installed\n');
@@ -114,7 +114,7 @@ describe('given a fake server that serves the pt-BR pack', { skip: !canRun && 'n
   });
 });
 
-describe('given a server that must not be trusted', { skip: !canRun && 'needs macOS and clang++' }, () => {
+describe('given a server that must not be trusted', { skip: !canRun && skipReason }, () => {
   it('when the content has the right size but another sha256, then nothing is written and the exit code is non-zero', async () => {
     handler = (_req, res) => res.end(Buffer.from(PT_PACK).fill('X', 0, 1));
     const result = await runAsync(app, ['--forge-fetch-lang', 'pt-BR'], env());

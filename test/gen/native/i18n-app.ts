@@ -10,7 +10,13 @@ import type { I18nGenOptions } from '../../../src/gen/i18n-options.ts';
 import type { Ir } from '../../../src/ir/types.ts';
 import { helloI18nIr, helloI18nOptions, ROOT } from '../helpers.ts';
 
-export const canRun = process.platform === 'darwin' && spawnSync('clang++', ['--version']).status === 0;
+const has = (command: string, args: string[]): boolean => spawnSync(command, args).status === 0;
+const LINUX_PACKAGES = ['glib-2.0', 'gio-2.0', 'libsoup-3.0'];
+export const onLinux = process.platform === 'linux';
+const canRunMacos = process.platform === 'darwin' && has('clang++', ['--version']);
+const canRunLinux = onLinux && has('g++', ['--version']) && has('pkg-config', ['--exists', ...LINUX_PACKAGES]);
+export const canRun = canRunMacos || canRunLinux;
+export const skipReason = 'needs macOS with clang++, or Linux with g++ and pkg-config glib-2.0 gio-2.0 libsoup-3.0';
 
 export const PT_PACK = encodeLang({
   tag: 'pt-BR',
@@ -59,6 +65,9 @@ export interface App {
   dispose: () => void;
 }
 
+const compiler = onLinux ? 'g++' : 'clang++';
+const pkgConfig = (mode: string): string[] => spawnSync('pkg-config', [mode, ...LINUX_PACKAGES], { encoding: 'utf8' }).stdout.split(/\s+/).filter(Boolean);
+
 // Generates the project and links it with main.cpp, the i18n runtime and a UI stub (clang++, no cmake).
 export function buildApp(ir: Ir, options: I18nGenOptions): App {
   const dir = mkdtempSync(join(tmpdir(), 'forge-i18n-app-'));
@@ -71,18 +80,18 @@ export function buildApp(ir: Ir, options: I18nGenOptions): App {
     [join(dir, 'messages.cpp'), []],
     [join(RUNTIME_DIR, 'i18n.cpp'), []],
     [join(RUNTIME_DIR, 'i18n_common.cpp'), []],
-    [join(RUNTIME_DIR, 'i18n_macos.mm'), ['-fobjc-arc']],
+    onLinux ? [join(RUNTIME_DIR, 'i18n_linux.cpp'), pkgConfig('--cflags')] : [join(RUNTIME_DIR, 'i18n_macos.mm'), ['-fobjc-arc']],
     [join(ROOT, 'test/gen/fixtures/ui_stub.cpp'), []],
   ];
   const objects: string[] = [];
   for (const [source, extra] of sources) {
     const object = join(dir, `${objects.length}.o`);
-    const result = spawnSync('clang++', [...flags, ...extra, '-c', source, '-o', object], { encoding: 'utf8' });
+    const result = spawnSync(compiler, [...flags, ...extra, '-c', source, '-o', object], { encoding: 'utf8' });
     if (result.status !== 0) throw new Error(`compiling ${source} failed:\n${result.stderr}`);
     objects.push(object);
   }
   const binary = join(dir, 'hello');
-  const link = spawnSync('clang++', [...objects, '-framework', 'Foundation', '-o', binary], { encoding: 'utf8' });
+  const link = spawnSync(compiler, [...objects, ...(onLinux ? pkgConfig('--libs') : ['-framework', 'Foundation']), '-o', binary], { encoding: 'utf8' });
   if (link.status !== 0) throw new Error(`linking failed:\n${link.stderr}`);
   return { dir, binary, dispose: () => rmSync(dir, { recursive: true, force: true }) };
 }
