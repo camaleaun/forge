@@ -94,3 +94,96 @@ describe('given compile errors', () => {
     assert.match(html, /EventSource\('\/events'\)/);
   });
 });
+
+describe('given an IR with messages and available languages', () => {
+  const msg = (text: string, extra: object = {}) => ({ kind: 'message' as const, text, ...extra });
+  const irWithMessages = () => {
+    const ir = helloIr();
+    ir.root.title = msg('Hello, forge');
+    ir.root.children[1].content = msg('Greet <b>');
+    ir.commands[0].description = msg('Print the greeting');
+    return ir;
+  };
+  const embedded = (html: string) =>
+    JSON.parse(html.match(/<script type="application\/json" id="forge-ir">([\s\S]*?)<\/script>/)![1]);
+
+  it('when there are no languages then there is no select', () => {
+    assert.doesNotMatch(renderPage(irWithMessages()), /id="forge-lang"/);
+    assert.doesNotMatch(renderPage(irWithMessages(), { languages: [] }), /<select/);
+  });
+  it('when there are languages then the select lists Auto, English and each endonym', () => {
+    const html = renderPage(irWithMessages(), { languages: ['pt-BR', 'es'] });
+    const select = html.match(/<select id="forge-lang"[^>]*>([\s\S]*?)<\/select>/)![1];
+    assert.deepEqual(
+      [...select.matchAll(/<option value="([^"]*)">([^<]*)<\/option>/g)].map((m) => [m[1], m[2]]),
+      [['auto', 'Auto'], ['en', 'English'], ['pt-BR', 'Português (Brasil)'], ['es', 'Español']],
+    );
+  });
+  it('when a tag has markup then the option is escaped', () => {
+    const html = renderPage(irWithMessages(), { languages: ['x"><script>1</script>'] });
+    assert.doesNotMatch(html, /<script>1<\/script>/);
+  });
+  it('when a node text is a message then its element carries data-msg-key pointing into the embedded table', () => {
+    const html = renderPage(irWithMessages(), { languages: ['pt-BR'] });
+    const key = html.match(/<button[^>]*data-msg-key="(\d+)"[^>]*>Greet &lt;b&gt;<\/button>/)![1];
+    assert.deepEqual(embedded(html).texts[Number(key)], msg('Greet <b>'));
+  });
+  it('when a CLI description is a message then it is wrapped in an element with data-msg-key', () => {
+    const html = renderPage(irWithMessages());
+    const key = html.match(/<span data-msg-key="(\d+)">Print the greeting<\/span>/)![1];
+    assert.equal(embedded(html).texts[Number(key)].text, 'Print the greeting');
+  });
+  it('when a text is a literal then it has no data-msg-key', () => {
+    const html = renderPage(helloIr(), { languages: ['pt-BR'] }).replace(/<script[\s\S]*?<\/script>/g, '');
+    assert.doesNotMatch(html, /data-msg-key/);
+  });
+  it('when embedding then the raw message objects and the languages are carried, not the English copy', () => {
+    const data = embedded(renderPage(irWithMessages(), { languages: ['pt-BR'] }));
+    assert.deepEqual(data.languages, ['pt-BR']);
+    assert.equal(data.root.children[1].content.kind, 'message');
+    assert.equal(data.root.title.kind, 'message');
+  });
+  it('when there are no languages then the embedded languages list is empty', () => {
+    assert.deepEqual(embedded(renderPage(irWithMessages())).languages, []);
+  });
+  it('when the script inserts translated text then only through textContent, never innerHTML', () => {
+    const script = renderPage(irWithMessages(), { languages: ['pt-BR'] }).match(/<script>([\s\S]*?)<\/script>/)![1];
+    assert.doesNotMatch(script, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(/);
+    assert.match(script, /textContent/);
+  });
+});
+
+describe('given an IR with a <select language /> node', () => {
+  const withSelect = () => {
+    const ir = helloIr();
+    ir.root.children.push({ kind: 'select', id: 'select_7', classes: ['lang'], select: { language: true }, style: { width: 160, fontSize: 14 }, children: [], loc: [1, 1] });
+    return ir;
+  };
+  const markup = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, '');
+  it('when rendering then the select is in place inside the card with the node style and id forge-lang', () => {
+    const html = markup(renderPage(withSelect(), { languages: ['pt-BR'] }));
+    const card = html.match(/<div class="card"[\s\S]*<\/div>/)![0];
+    assert.match(card, /<select id="forge-lang" class="lang" style="[^"]*width:160px[^"]*font-size:14px[^"]*">/);
+  });
+  it('when rendering then the options are English plus each language, with no Auto', () => {
+    const html = markup(renderPage(withSelect(), { languages: ['pt-BR', 'es'] }));
+    const select = html.match(/<select id="forge-lang"[^>]*>([\s\S]*?)<\/select>/)![1];
+    assert.deepEqual(
+      [...select.matchAll(/<option value="([^"]*)">([^<]*)<\/option>/g)].map((m) => [m[1], m[2]]),
+      [['en', 'English'], ['pt-BR', 'Português (Brasil)'], ['es', 'Español']],
+    );
+    assert.doesNotMatch(html, /Auto/);
+  });
+  it('when there are no languages then the select still shows English only', () => {
+    const html = markup(renderPage(withSelect()));
+    assert.match(html, /<select id="forge-lang"[^>]*><option value="en">English<\/option><\/select>/);
+  });
+  it('when the IR has a select node then the standalone selector is not added', () => {
+    const html = markup(renderPage(withSelect(), { languages: ['pt-BR'] }));
+    assert.equal(html.split('id="forge-lang"').length, 2);
+  });
+  it('when there is no select node then the standalone selector keeps Auto and marks itself', () => {
+    const html = markup(renderPage(helloIr(), { languages: ['pt-BR'] }));
+    assert.match(html, /<select id="forge-lang" data-auto="1"[^>]*><option value="auto">Auto<\/option>/);
+  });
+});

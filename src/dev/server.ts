@@ -5,11 +5,16 @@ import type { FSWatcher } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Ir } from '../ir/types.ts';
+import { normalizeTag } from '../i18n/locale.ts';
 import { renderErrorPage, renderPage } from './render.ts';
+
+/** A published language pack: header, plural-forms line and entries, as encodeLang produces. */
+export type LangPack = { tag: string; text: string };
+export type Loaded = { ir?: Ir; errors: string[]; packs?: LangPack[] };
 
 export type DevServerOptions = {
   projectDir: string;
-  load: () => Promise<{ ir?: Ir; errors: string[] }>;
+  load: () => Promise<Loaded>;
   port?: number;
   host?: string;
   lan?: boolean;
@@ -17,10 +22,17 @@ export type DevServerOptions = {
 };
 export type DevServer = { url: string; lanUrls: string[]; token?: string; reload(): void; close(): Promise<void> };
 
+const LANG_PATH = /^\/lang\/([^/]+)\.lang$/;
+const LANG_TAG = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 const COOKIE = 'forge_token';
 const DEBOUNCE_MS = 50;
 const HEARTBEAT_MS = 15000;
 const IGNORED_DIRS = new Set(['node_modules', '.git', 'build', 'dist', 'out', '.build']);
+
+// Changes inside these folders (dependencies, build output) never trigger a reload.
+export function isIgnoredChange(filename: string | null): boolean {
+  return filename !== null && filename.split(/[\\/]/).some((part) => IGNORED_DIRS.has(part));
+}
 
 const digest = (text: string) => createHash('sha256').update(text).digest();
 const sameToken = (a: string, b: string) => timingSafeEqual(digest(a), digest(b));
@@ -93,19 +105,41 @@ export async function createDevServer(options: DevServerOptions): Promise<DevSer
       });
       return;
     }
-    if (url.pathname === '/' || url.pathname === '/ir.json') {
-      let loaded: { ir?: Ir; errors: string[] };
+    const loadSafe = async (): Promise<Loaded> => {
       try {
-        loaded = await options.load();
+        return await options.load();
       } catch (error) {
-        loaded = { errors: [error instanceof Error ? error.message : String(error)] };
+        return { errors: [error instanceof Error ? error.message : String(error)] };
       }
+    };
+    const lang = LANG_PATH.exec(url.pathname);
+    if (lang) {
+      // The tag only selects among the packs load() returned: nothing here touches the file system.
+      let raw = lang[1];
+      try {
+        raw = decodeURIComponent(raw);
+      } catch {
+        raw = '';
+      }
+      raw = raw.replace(/_/g, '-'); // POSIX spelling (pt_br) is accepted
+      const tag = LANG_TAG.test(raw) ? normalizeTag(raw) : undefined;
+      const loaded = await loadSafe();
+      const pack =
+        tag !== undefined && loaded.errors.length === 0
+          ? (loaded.packs ?? []).find((p) => normalizeTag(p.tag) === tag)
+          : undefined;
+      if (!pack) return void res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('Not found\n');
+      return void res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' }).end(pack.text);
+    }
+    if (url.pathname === '/' || url.pathname === '/ir.json') {
+      const loaded = await loadSafe();
       const ok = loaded.ir !== undefined && loaded.errors.length === 0;
       if (url.pathname === '/ir.json') {
         if (!ok) return void res.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' }).end('No valid IR\n');
         return void res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }).end(JSON.stringify(loaded.ir));
       }
-      const html = ok ? renderPage(loaded.ir!) : renderErrorPage(loaded.errors);
+      const languages = [...new Set((loaded.packs ?? []).map((p) => normalizeTag(p.tag)).filter((t): t is string => t !== undefined))];
+      const html = ok ? renderPage(loaded.ir!, { languages }) : renderErrorPage(loaded.errors);
       return void res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }).end(html);
     }
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('Not found\n');
@@ -129,7 +163,7 @@ export async function createDevServer(options: DevServerOptions): Promise<DevSer
 
   let timer: NodeJS.Timeout | undefined;
   const watcher: FSWatcher = watch(options.projectDir, { recursive: true }, (_event, filename) => {
-    if (filename && String(filename).split(/[\\/]/).some((part) => IGNORED_DIRS.has(part))) return;
+    if (isIgnoredChange(filename === null ? null : String(filename))) return;
     clearTimeout(timer);
     timer = setTimeout(reload, DEBOUNCE_MS);
   });

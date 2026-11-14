@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const root = new URL('../../', import.meta.url).pathname;
@@ -116,6 +118,32 @@ describe('given a signal that arrives right after the first output', () => {
       const exited = new Promise<{ code: number | null; signal: string | null }>((resolve) => child.on('exit', (code, signal) => resolve({ code, signal })));
       child.stdout.once('data', () => child.kill('SIGTERM'));
       assert.deepEqual(await exited, { code: 0, signal: null }, `attempt ${attempt}`);
+    }
+  });
+});
+
+describe('given a project with an i18n folder', () => {
+  it('when running "forge start --local", then the preview serves the language pack and shows the language dropdown', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'forge-start-i18n-'));
+    cpSync(fixture, dir, { recursive: true });
+    mkdirSync(join(dir, 'i18n'));
+    writeFileSync(join(dir, 'i18n/pt-BR.lang'), 'Greet\tCumprimentar\nHello, forge\tOlá, forge\n');
+    writeFileSync(join(dir, 'App.tsx'), (await import('node:fs')).readFileSync(join(dir, 'App.tsx'), 'utf8').replace('<button onClick={greet}>Greet</button>', '<button onClick={greet}>Greet</button>\n      <select language />'));
+    const run = startForge(['--project', dir, '--port', '0', '--local'], /http:\/\/127\.0\.0\.1:(\d+)\//);
+    try {
+      const match = await run.found;
+      const pack = await fetch(`http://127.0.0.1:${match[1]}/lang/pt-BR.lang`);
+      assert.equal(pack.status, 200);
+      const text = await pack.text();
+      assert.match(text, /^forge-lang 1 pt-BR hello 0\.1\.0/);
+      assert.match(text, /Greet\tCumprimentar/);
+      const html = await (await fetch(match[0])).text();
+      assert.match(html, /<select[^>]*id="forge-lang"/);
+      assert.match(html, /Português \(Brasil\)/);
+      assert.equal((await fetch(`http://127.0.0.1:${match[1]}/lang/fr.lang`)).status, 404);
+    } finally {
+      assert.equal(await run.stop(), 0);
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

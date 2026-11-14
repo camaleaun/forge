@@ -1,6 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -130,5 +130,137 @@ describe('given the bin/forge shim', () => {
       rmSync(bin, { recursive: true, force: true });
       rmSync(target, { recursive: true, force: true });
     }
+  });
+});
+
+const PT_ALL = 'Hello, forge\tOlá, forge\nGreet\tCumprimentar\n';
+
+function buildWithI18n(files: Record<string, string>, extraArgs: string[], pkgChange?: (pkg: Record<string, unknown>) => void) {
+  const target = mkdtempSync(join(tmpdir(), 'forge-i18n-out-'));
+  let result!: ReturnType<typeof forge>;
+  let packs: Record<string, Buffer> = {};
+  let written: string[] = [];
+  withProjectCopy((dir) => {
+    mkdirSync(join(dir, 'i18n'));
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, 'i18n', name), text);
+    const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+    pkg.repository = 'github:camaleaun/forge-hello-world';
+    pkgChange?.(pkg);
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(pkg));
+  }, (dir) => {
+    result = forge('build', '--project', dir, '--out', target, ...extraArgs);
+    written = readdirSync(target, { recursive: true }).map(String).sort();
+    if (written.includes('lang')) for (const name of readdirSync(join(target, 'lang'))) packs[name] = readFileSync(join(target, 'lang', name));
+  });
+  rmSync(target, { recursive: true, force: true });
+  return { result, packs, written };
+}
+
+describe('given an app with i18n/pt-BR.lang', () => {
+  it('when running forge build, then lang/<app>-<version>-<tag>.lang is written with the pack header and the translations', () => {
+    const { result, packs, written } = buildWithI18n({ 'pt-BR.lang': PT_ALL }, []);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, '');
+    assert.deepEqual(Object.keys(packs), ['hello-0.1.0-pt-BR.lang']);
+    const text = packs['hello-0.1.0-pt-BR.lang'].toString('utf8');
+    assert.ok(text.startsWith('forge-lang 1 pt-BR hello 0.1.0\nplural-forms: nplurals=2; plural=(n > 1);\n'));
+    assert.ok(text.includes('Greet\tCumprimentar\n'));
+    assert.ok(written.includes('ui_macos.mm'));
+  });
+
+  it('when the same project is built twice, then the pack bytes are identical', () => {
+    const a = buildWithI18n({ 'pt-BR.lang': PT_ALL }, []).packs;
+    const b = buildWithI18n({ 'pt-BR.lang': PT_ALL }, []).packs;
+    assert.deepEqual(a, b);
+  });
+
+  it('when a phrase is untranslated, then a warning goes to stderr, the exit code is 0 and the pack is written', () => {
+    const { result, packs } = buildWithI18n({ 'pt-BR.lang': 'Greet\tCumprimentar\n' }, []);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /warning: i18n\/pt-BR\.lang: missing "Hello, forge"/);
+    assert.equal(Object.keys(packs).length, 1);
+  });
+
+  it('when --strict-i18n is given and a phrase is untranslated, then the same message is an error, the exit code is 1 and nothing is written', () => {
+    const { result, written } = buildWithI18n({ 'pt-BR.lang': 'Greet\tCumprimentar\n' }, ['--strict-i18n']);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /error: i18n\/pt-BR\.lang: missing "Hello, forge"/);
+    assert.deepEqual(written, []);
+  });
+
+  it('when --strict-i18n is given and everything is translated, then it builds', () => {
+    const { result, packs } = buildWithI18n({ 'pt-BR.lang': PT_ALL }, ['--strict-i18n']);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(Object.keys(packs).length, 1);
+  });
+
+  it('when package.json has no repository, then it warns that packs cannot be downloaded and --strict-i18n makes it an error', () => {
+    const lax = buildWithI18n({ 'pt-BR.lang': PT_ALL }, [], (pkg) => { delete pkg.repository; });
+    assert.equal(lax.result.status, 0, lax.result.stderr);
+    assert.match(lax.result.stderr, /warning: package\.json: no "repository": language packs cannot be downloaded/);
+    const strict = buildWithI18n({ 'pt-BR.lang': PT_ALL }, ['--strict-i18n'], (pkg) => { delete pkg.repository; });
+    assert.equal(strict.result.status, 1);
+    assert.match(strict.result.stderr, /error: package\.json: no "repository"/);
+    assert.deepEqual(strict.written, []);
+  });
+
+  it('when a translation changes the placeholders, then the exit code is 1 with file:line and nothing is written', () => {
+    const { result, written } = buildWithI18n({ 'pt-BR.lang': 'Greet\tOi %s\n' }, []);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /error: i18n\/pt-BR\.lang:1: /);
+    assert.deepEqual(written, []);
+  });
+
+  it('when en.lang or a badly named file exists, then the exit code is 1 and stderr names it', () => {
+    const { result } = buildWithI18n({ 'en.lang': 'Greet\tHi\n', 'portuguese.lang': 'Greet\tOi\n' }, []);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /error: i18n\/en\.lang/);
+    assert.match(result.stderr, /error: i18n\/portuguese\.lang/);
+  });
+
+  it('when i18n/ has only template.lang, then no lang/ folder is written and there are no warnings', () => {
+    const { result, written } = buildWithI18n({ 'template.lang': 'Greet\t\n' }, []);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, '');
+    assert.ok(!written.includes('lang'));
+  });
+});
+
+describe('given an app with a <select language> element', () => {
+  function withSelect(files: Record<string, string>, run: (result: ReturnType<typeof forge>, written: string[]) => void) {
+    const target = mkdtempSync(join(tmpdir(), 'forge-select-out-'));
+    withProjectCopy((dir) => {
+      mkdirSync(join(dir, 'i18n'));
+      for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, 'i18n', name), text);
+      const app = readFileSync(join(dir, 'App.tsx'), 'utf8').replace('<button', '<select language />\n      <button');
+      writeFileSync(join(dir, 'App.tsx'), app);
+    }, (dir) => {
+      const result = forge('build', '--project', dir, '--out', target);
+      run(result, readdirSync(target));
+    });
+    rmSync(target, { recursive: true, force: true });
+  }
+
+  it('when no language file produced a pack, then forge build exits 1 with the select error and writes nothing', () => {
+    withSelect({}, (result, written) => {
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /error: <select language> needs at least one language file in i18n\//);
+      assert.deepEqual(written, []);
+    });
+  });
+
+  it('when every language file had errors, then the select error comes as well', () => {
+    withSelect({ 'pt-BR.lang': 'Greet\tOi %s\n' }, (result) => {
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /error: i18n\/pt-BR\.lang:1: /);
+      assert.match(result.stderr, /error: <select language> needs at least one language file/);
+    });
+  });
+
+  it('when there is a language pack, then it builds', () => {
+    withSelect({ 'pt-BR.lang': PT_ALL }, (result, written) => {
+      assert.equal(result.status, 0, result.stderr);
+      assert.ok(written.includes('lang'));
+    });
   });
 });

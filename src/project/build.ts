@@ -3,13 +3,14 @@ import { join, resolve } from 'node:path';
 import { parseSvg } from '../icon/svg.ts';
 import { buildIr } from '../ir/build.ts';
 import type { Ir } from '../ir/types.ts';
+import type { PackageInfo } from '../i18n/project.ts';
 import { loadProject } from './load.ts';
 import { applyStyles, parseStyles } from './styles.ts';
 
 // Loads the app in `dir` and returns its IR (with resolved styles) or every error found.
 export const ICON_FILE = 'AppIcon.icns';
 
-export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: string[]; iconSvg?: string }> {
+export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: string[]; iconSvg?: string; pkg?: PackageInfo }> {
   let project;
   try {
     project = await loadProject(dir);
@@ -36,5 +37,13 @@ export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: st
       errors.push((error as Error).message);
     }
   }
-  return errors.length > 0 ? { errors } : { ir: built.ir, errors, iconSvg };
+  const pkg: PackageInfo = { name: project.app.name, version: project.app.version };
+  try {
+    const raw = JSON.parse(readFileSync(join(resolve(dir), 'package.json'), 'utf8'));
+    if (raw.repository !== undefined) pkg.repository = raw.repository;
+    if (raw.forge !== undefined) pkg.forge = raw.forge;
+  } catch {
+    // loadProject already read this file; only the optional fields are lost.
+  }
+  return errors.length > 0 ? { errors } : { ir: built.ir, errors, iconSvg, pkg };
 }

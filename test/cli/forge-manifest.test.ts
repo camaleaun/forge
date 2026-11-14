@@ -47,3 +47,36 @@ describe('given a dist directory with a portable zip and a dmg', () => {
     }
   });
 });
+
+describe('given a dist directory with a zip and a language pack', () => {
+  it('when running forge manifest, then languages carries the pack with its real sha256 and size', () => {
+    const dist = mkdtempSync(join(tmpdir(), 'forge-dist-'));
+    try {
+      writeFileSync(join(dist, 'hello-0.2.0-rc.1-darwin-arm64.zip'), 'abc');
+      writeFileSync(join(dist, 'hello-0.2.0-rc.1-pt-BR.lang'), 'abc');
+      const result = forge('manifest', '--dir', dist, '--tag', 'v0.2.0-rc.1', '--repo', 'camaleaun/forge-hello-world');
+      assert.equal(result.status, 0, result.stderr);
+      assert.deepEqual(JSON.parse(result.stdout).languages, {
+        'pt-BR': {
+          url: 'https://github.com/camaleaun/forge-hello-world/releases/download/v0.2.0-rc.1/hello-0.2.0-rc.1-pt-BR.lang',
+          sha256: ABC_SHA256,
+          size: 3,
+        },
+      });
+    } finally {
+      rmSync(dist, { recursive: true, force: true });
+    }
+  });
+
+  it('when the pack belongs to another version, then the exit code is 1 and stderr names the file', () => {
+    const dist = mkdtempSync(join(tmpdir(), 'forge-dist-'));
+    try {
+      writeFileSync(join(dist, 'hello-0.1.0-pt-BR.lang'), 'abc');
+      const result = forge('manifest', '--dir', dist, '--tag', 'v0.2.0', '--repo', 'camaleaun/x');
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /hello-0\.1\.0-pt-BR\.lang/);
+    } finally {
+      rmSync(dist, { recursive: true, force: true });
+    }
+  });
+});

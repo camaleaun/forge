@@ -1,5 +1,7 @@
-import { englishIr, textOf } from '../ir/text.ts';
-import type { Ir, Node, Style } from '../ir/types.ts';
+import { languageName } from '../i18n/names.ts';
+import { textOf } from '../ir/text.ts';
+import type { Ir, Node, Style, TextValue } from '../ir/types.ts';
+import { CLIENT_SOURCE } from './i18n-client.ts';
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const esc = (text: string): string => text.replace(/[&<>"']/g, (c) => ESCAPES[c]);
@@ -39,11 +41,33 @@ function styleAttr(kind: Node['kind'], style: Style): string {
   return decls.length ? ` style="${esc(decls.join(';'))}"` : '';
 }
 
-function renderNode(node: Node, ir: Ir): string {
+function languageOptions(languages: string[], auto: boolean): string {
+  return (auto ? ['<option value="auto">Auto</option>'] : [])
+    .concat('<option value="en">English</option>', languages.map((tag) => `<option value="${esc(tag)}">${esc(languageName(tag))}</option>`))
+    .join('');
+}
+
+function hasSelect(node: Node): boolean {
+  return node.kind === 'select' || node.children.some(hasSelect);
+}
+
+/** Collects the message texts the script re-renders; the index in the list is the data-msg-key. */
+type Texts = TextValue[];
+
+function msgKey(value: TextValue, texts: Texts): string {
+  if (value.kind !== 'message') return '';
+  texts.push(value);
+  return ` data-msg-key="${texts.length - 1}"`;
+}
+
+function renderNode(node: Node, ir: Ir, texts: Texts, languages: string[]): string {
   const attrs = ` id="${esc(node.id)}"` + (node.classes.length ? ` class="${esc(node.classes.join(' '))}"` : '');
   let text = '';
   let bound = '';
-  if (node.content && node.content.kind !== 'state') text = esc(textOf(node.content));
+  if (node.content && node.content.kind !== 'state') {
+    text = esc(textOf(node.content));
+    bound = msgKey(node.content, texts);
+  }
   else if (node.content?.kind === 'state') {
     const stateId = node.content.state;
     bound = ` data-state="${esc(stateId)}"`;
@@ -51,10 +75,15 @@ function renderNode(node: Node, ir: Ir): string {
     text = esc(initial ? textOf(initial) : '');
   }
   const style = styleAttr(node.kind, node.style);
-  const children = node.children.map((child) => renderNode(child, ir)).join('');
+  const children = node.children.map((child) => renderNode(child, ir, texts, languages)).join('');
   switch (node.kind) {
     case 'text':
       return `<div${attrs}${bound}${style}>${text}</div>`;
+    case 'select': {
+      // The language dropdown: English plus one option per available pack; the script wires it up by id.
+      const options = languageOptions(languages, false);
+      return `<select id="forge-lang"${node.classes.length ? ` class="${esc(node.classes.join(' '))}"` : ''}${style}>${options}</select>`;
+    }
     case 'button': {
       const click = node.on?.click ? ` data-click="${esc(node.on.click)}"` : '';
       return `<button type="button"${attrs}${bound}${click}${style}>${text}</button>`;
@@ -73,25 +102,54 @@ const CSS = `body{margin:0;padding:16px;font-family:system-ui,sans-serif;backgro
 #forge-cli-out{white-space:pre-wrap;font-family:ui-monospace,monospace;background:#111;color:#8f8;padding:8px;min-height:1em}`;
 
 const APP_SCRIPT = `(function(){
-var ir=JSON.parse(document.getElementById('forge-ir').textContent);
+${CLIENT_SOURCE}
+var data=JSON.parse(document.getElementById('forge-ir').textContent);
+var texts=data.texts||[];
+var languages=data.languages||[];
 var handlers={};
-ir.handlers.forEach(function(h){handlers[h.id]=h;});
+data.handlers.forEach(function(h){handlers[h.id]=h;});
+var values={};
+data.states.forEach(function(s){values[s.id]=s.initial;});
+var pack=null;
+var request=0;
+function tr(v){
+  if(v.kind!=='message')return v.value;
+  var args=v.args||[];
+  var entry=pack&&pack.entries[(v.context||'')+'\\u0004'+v.text];
+  if(entry){
+    var i=v.plural!==undefined&&pack.plural?pack.plural(v.count===undefined?1:v.count):0;
+    var form=entry[i]!==undefined?entry[i]:entry[0];
+    if(form)return forgeFormat(form,args);
+  }
+  return forgeFormat(v.plural!==undefined&&v.count!==1?v.plural:v.text,args);
+}
+function all(selector){return document.querySelectorAll(selector);}
+function renderState(id){
+  var els=all('[data-state="'+id+'"]');
+  for(var i=0;i<els.length;i++)els[i].textContent=tr(values[id]);
+}
+function render(){
+  var els=all('[data-msg-key]');
+  for(var i=0;i<els.length;i++){var t=texts[Number(els[i].getAttribute('data-msg-key'))];if(t)els[i].textContent=tr(t);}
+  for(var id in values)renderState(id);
+  if(data.root.title)document.title=tr(data.root.title);
+}
 function run(id){
   var printed=[];
   var h=handlers[id];
   if(!h)return printed;
   h.effects.forEach(function(e){
     if(e.op!=='set')return;
-    var els=document.querySelectorAll('[data-state="'+e.state+'"]');
-    for(var i=0;i<els.length;i++)els[i].textContent=e.value.value;
-    printed.push(e.value.value);
+    values[e.state]=e.value;
+    renderState(e.state);
+    printed.push(tr(e.value));
   });
   return printed;
 }
 var out=document.getElementById('forge-cli-out');
 var lines=[];
 function on(selector,attr,show){
-  var els=document.querySelectorAll(selector);
+  var els=all(selector);
   for(var i=0;i<els.length;i++)(function(el){
     el.addEventListener('click',function(){
       var printed=run(el.getAttribute(attr));
@@ -101,6 +159,42 @@ function on(selector,attr,show){
 }
 on('[data-click]','data-click',false);
 on('[data-command]','data-handler',true);
+function stored(){try{return localStorage.getItem('forge-lang');}catch(e){return null;}}
+function queryLang(){
+  var m=/[?&]lang=([^&]*)/.exec(typeof location!=='undefined'&&location.search?location.search:'');
+  if(!m)return null;
+  try{return decodeURIComponent(m[1]);}catch(e){return null;}
+}
+function resolve(choice){
+  if(choice&&choice!=='auto')return choice==='en'?'en':forgePickLocale([choice],languages);
+  var preferred=typeof navigator!=='undefined'?(navigator.languages||(navigator.language?[navigator.language]:[])):[];
+  return forgePickLocale(Array.prototype.slice.call(preferred),languages);
+}
+function apply(choice){
+  var tag=resolve(choice);
+  var mine=++request;
+  if(tag==='en'||typeof fetch==='undefined'){pack=null;render();return;}
+  fetch('lang/'+encodeURIComponent(tag)+'.lang',{credentials:'same-origin'}).then(function(r){
+    if(!r.ok)throw new Error('no pack');
+    return r.text();
+  }).then(function(text){
+    if(mine!==request)return;
+    pack=forgeParseLang(text);render();
+  }).catch(function(){
+    if(mine!==request)return;
+    pack=null;render();
+  });
+}
+var select=document.getElementById('forge-lang');
+var initial=queryLang()||stored()||'auto';
+if(select){
+  select.value=select.getAttribute('data-auto')?initial:resolve(initial);
+  select.addEventListener('change',function(){
+    try{localStorage.setItem('forge-lang',select.value);}catch(e){}
+    apply(select.value);
+  });
+}
+if(languages.length)apply(initial);
 ${RELOAD}
 })();`;
 
@@ -112,17 +206,24 @@ function document_(title: string, body: string, script: string, extra = ''): str
 `;
 }
 
-export function renderPage(ir: Ir): string {
+export function renderPage(ir: Ir, options: { languages?: string[] } = {}): string {
+  const languages = options.languages ?? [];
+  const texts: Texts = [];
+  const card = renderNode(ir.root, ir, texts, languages);
   const cli = ir.commands.length
     ? `<section id="forge-cli"><strong>CLI</strong><p>${ir.commands
         .map(
           (c) =>
-            `<button type="button" data-command="${esc(c.flag)}" data-handler="${esc(c.handler)}">${esc(c.flag)}</button> ${esc(textOf(c.description))}<br>`,
+            `<button type="button" data-command="${esc(c.flag)}" data-handler="${esc(c.handler)}">${esc(c.flag)}</button> <span${msgKey(c.description, texts)}>${esc(textOf(c.description))}</span><br>`,
         )
         .join('')}</p><div id="forge-cli-out"></div></section>`
     : '';
-  const body = `<div class="card" style="width:fit-content;max-width:100%">${renderNode(ir.root, ir)}</div>${cli}`;
-  const json = `<script type="application/json" id="forge-ir">${safeJson(englishIr(ir))}</script>`;
+  const select =
+    languages.length && !hasSelect(ir.root)
+      ? `<p><select id="forge-lang" data-auto="1" aria-label="Language">${languageOptions(languages, true)}</select></p>`
+      : '';
+  const body = `${select}<div class="card" style="width:fit-content;max-width:100%">${card}</div>${cli}`;
+  const json = `<script type="application/json" id="forge-ir">${safeJson({ ...ir, languages, texts })}</script>`;
   return document_(ir.root.title ? textOf(ir.root.title) : ir.app.name, body + json, APP_SCRIPT);
 }
 

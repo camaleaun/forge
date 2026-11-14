@@ -145,3 +145,17 @@ describe('given an app that imports the translation functions from forge and has
       assert.deepEqual(ir?.messages.map((m) => m.text), ['Press the button']);
     }));
 });
+
+describe('given a package.json with a repository and forge options', () => {
+  it('when building the project IR, then the package fields the i18n build needs come back with it', async () => {
+    await withCopy(async (dir) => {
+      const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+      pkg.repository = 'github:o/r';
+      pkg.forge = { i18n: { menu: false } };
+      writeFileSync(join(dir, 'package.json'), JSON.stringify(pkg));
+      const result = await buildProjectIr(dir);
+      assert.deepEqual(result.errors, []);
+      assert.deepEqual(result.pkg, { name: 'hello', version: '0.1.0', repository: 'github:o/r', forge: { i18n: { menu: false } } });
+    });
+  });
+});
