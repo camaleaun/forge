@@ -111,6 +111,30 @@ import { next, back, quit, goTo } from 'forge';
 - `next`, `back` and `goTo` need a `<steps>` in the window; `quit` does not. They cannot be used in a CLI command.
 - The preview shows only the current step and ignores the step sizes (it fills the page). The macOS and Linux generators do not support `<steps>` yet and stop with a clear error.
 
+### One file per screen
+
+A screen can be a component in its own file, with its own CSS and its own state; `App.tsx` only lists them. Components are expanded when the app is built, so a component that returns a `<step>` counts as a `<step>` of `<steps>`:
+
+```tsx
+// App.tsx
+import './App.css';
+import Language from './screens/Language.tsx';
+import Hello from './screens/Hello.tsx';
+
+export default function App() {
+  return (
+    <window title="Hello, forge">
+      <steps>
+        <Language />
+        <Hello />
+      </steps>
+    </window>
+  );
+}
+```
+
+`screens/Language.tsx` exports a function that returns `<step id="language" ...>` and imports `./Language.css`; `screens/Hello.tsx` does the same (with its own `state(...)`). Imports use the file extension (`./screens/Hello.tsx`). The CSS files are **global**, not scoped to the file: all imported stylesheets are merged in import order, so give each screen's classes distinct names (for example `.language-buttons`) when they should look different.
+
 Errors (with `App.tsx:line:column`): `<steps>` outside the window, a child of `<steps>` that is not a `<step>`, a step without `id`, duplicate ids, a size that is not a positive number, an empty step, and a `<step>` outside `<steps>`.
 
 ## Commands (the CLI in the binary)
