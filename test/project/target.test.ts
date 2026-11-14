@@ -43,3 +43,14 @@ describe('given an app with <only macos> around a button', () => {
       assert.match(errors[0], /^App\.tsx:\d+:\d+: <only> needs at least one target/);
     }));
 });
+
+describe('given App.css with @only macos', () => {
+  it('when building for macos and linux, then only macos gets the rule; an unknown target in CSS carries App.css:line:column', () =>
+    withCopy(async (dir) => {
+      writeFileSync(join(dir, 'App.css'), '@only macos { text { font-size: 20px } }\n');
+      assert.equal((await buildProjectIr(dir, 'macos')).ir?.root.children[0].style.fontSize, 20);
+      assert.equal((await buildProjectIr(dir, 'linux')).ir?.root.children[0].style.fontSize, undefined);
+      writeFileSync(join(dir, 'App.css'), '@only beos { text { font-size: 20px } }\n');
+      assert.match((await buildProjectIr(dir, 'macos')).errors[0], /^App\.css:1:7: unknown target "beos" in @only/);
+    }));
+});

@@ -29,7 +29,7 @@ export async function buildProjectIr(dir: string, target?: string): Promise<{ ir
   const css = parseStyles(project.cssFiles.map((file) => ({ file, source: readFileSync(file, 'utf8') })));
   const errors = [...built.errors, ...css.errors];
   if (!built.ir) return { errors };
-  errors.push(...applyStyles(built.ir, css.rules, 'App.css'));
+  errors.push(...applyStyles(built.ir, css.rules, 'App.css', target));
 
   // An optional icon.svg next to App.tsx becomes the app icon (AppIcon.icns).
   const iconPath = join(resolve(dir), 'icon.svg');

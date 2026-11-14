@@ -121,8 +121,8 @@ describe('given selectors outside the v1 subset', () => {
   });
 
   it('when a rule starts with an @-rule, then it is reported and the next rule still parses', () => {
-    const { rules, errors } = parseCss('@media (min-width: 600px) { window { gap: 4px } }\ntext { font-size: 14px }', 'App.css');
-    assert.deepEqual(errors, ['App.css:1:1: unsupported at-rule "@media" in v1']);
+    const { rules, errors } = parseCss('@foo (min-width: 600px) { window { gap: 4px } }\ntext { font-size: 14px }', 'App.css');
+    assert.deepEqual(errors, ['App.css:1:1: unsupported at-rule "@foo" in v1']);
     assert.deepEqual(rules.map((r) => r.selectors[0]?.name), ['text']);
   });
 
@@ -223,5 +223,51 @@ describe('given malformed blocks', () => {
   it('when a declaration has no colon, then an error points at it', () => {
     const { errors } = parseCss('window { gap 4px }', 'App.css');
     assert.deepEqual(errors, ['App.css:1:10: expected ":" in declaration "gap 4px"']);
+  });
+});
+
+describe('given @only and @except blocks', () => {
+  const css = '@only macos linux {\n  window { gap: 4px }\n  text { font-size: 14px }\n}\n@except web { button { font-size: 12px } }\nview { gap: 1px }';
+
+  it('when parsing, then each nested rule carries its target condition and source order is kept', () => {
+    const { rules, errors } = parseCss(css, 'App.css');
+    assert.deepEqual(errors, []);
+    assert.deepEqual(rules.map((r) => [r.selectors[0].name, r.conditions]), [
+      ['window', [{ kind: 'target', mode: 'only', targets: ['macos', 'linux'] }]],
+      ['text', [{ kind: 'target', mode: 'only', targets: ['macos', 'linux'] }]],
+      ['button', [{ kind: 'target', mode: 'except', targets: ['web'] }]],
+      ['view', undefined],
+    ]);
+    assert.deepEqual(rules.map((r) => r.order), [0, 1, 2, 3]);
+    assert.deepEqual(rules[0].selectors[0].loc, [2, 3]);
+    assert.deepEqual(rules[0].declarations, [{ property: 'gap', value: 4, loc: [2, 12] }]);
+  });
+
+  it('when @only has no targets, then it is reported at the at-rule', () => {
+    assert.deepEqual(parseCss('@only { window { gap: 4px } }', 'App.css').errors, ['App.css:1:1: @only needs at least one target (macos | linux | windows | web | android | ios)']);
+  });
+
+  it('when a target is unknown, then it is reported at the name with the valid list', () => {
+    assert.deepEqual(parseCss('@except macos beos { window { gap: 4px } }', 'App.css').errors,
+      ['App.css:1:15: unknown target "beos" in @except (expected macos | linux | windows | web | android | ios)']);
+  });
+
+  it('when @only is nested in @only, then it is an error and the rest still parses', () => {
+    const { rules, errors } = parseCss('@only macos {\n  @only linux { window { gap: 4px } }\n  text { font-size: 14px }\n}', 'App.css');
+    assert.deepEqual(errors, ['App.css:2:3: @only cannot be nested inside @only']);
+    assert.deepEqual(rules.map((r) => r.selectors[0].name), ['text']);
+  });
+
+  it('when @only has no block, then it is reported', () => {
+    assert.deepEqual(parseCss('@only macos;', 'App.css').errors, ['App.css:1:1: @only needs a { ... } block']);
+  });
+
+  it('when the block is not closed, then it is reported', () => {
+    assert.deepEqual(parseCss('@only macos { window { gap: 4px }', 'App.css').errors, ['App.css:1:13: unclosed block, expected "}"']);
+  });
+
+  it('when @media is used, then it says it comes next', () => {
+    assert.deepEqual(parseCss('@media (min-width: 600px) { window { gap: 4px } }', 'App.css').errors,
+      ['App.css:1:1: @media is not supported yet: it comes next']);
   });
 });

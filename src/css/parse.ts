@@ -1,11 +1,15 @@
 import { ELEMENT_KINDS, PROPERTIES } from './properties.ts';
 import type { StyleValue } from './properties.ts';
+import { TARGET_LIST, isTarget } from '../ir/targets.ts';
+import type { Target } from '../ir/targets.ts';
 
 export type { StyleValue };
 export type Loc = [line: number, column: number];
 export type Selector = { kind: 'type' | 'class' | 'id'; name: string; loc: Loc };
 export type Declaration = { property: string; value: StyleValue; loc: Loc };
-export type Rule = { selectors: Selector[]; declarations: Declaration[]; order: number };
+// Conditions a rule sits under. Only target conditions exist today; @media (U4) adds a `media` kind here.
+export type Condition = { kind: 'target'; mode: 'only' | 'except'; targets: Target[] };
+export type Rule = { selectors: Selector[]; declarations: Declaration[]; order: number; conditions?: Condition[] };
 
 /** Replaces comments with spaces (newlines kept) so offsets and positions stay valid. */
 function blankComments(source: string, onUnterminated: (offset: number) => void): string {
@@ -14,6 +18,36 @@ function blankComments(source: string, onUnterminated: (offset: number) => void)
     return comment.replace(/[^\n]/g, ' ');
   });
 }
+
+// One entry per supported at-rule. `condition` parses the prelude (the text between the name and "{")
+// into a Condition and reports its own errors; U4 adds `media` here without touching the block parser.
+type AtRule = { condition: (prelude: string, preludeAt: number, at: number, fail: (offset: number, message: string) => void) => Condition | undefined };
+
+function targetRule(mode: 'only' | 'except'): AtRule {
+  return {
+    condition: (prelude, preludeAt, at, fail) => {
+      const names = [...prelude.matchAll(/\S+/g)];
+      if (names.length === 0) {
+        fail(at, `@${mode} needs at least one target (${TARGET_LIST})`);
+        return undefined;
+      }
+      const targets: Target[] = [];
+      let valid = true;
+      for (const name of names) {
+        if (isTarget(name[0])) targets.push(name[0]);
+        else {
+          fail(preludeAt + name.index, `unknown target "${name[0]}" in @${mode} (expected ${TARGET_LIST})`);
+          valid = false;
+        }
+      }
+      return valid ? { kind: 'target', mode, targets } : undefined;
+    },
+  };
+}
+
+const AT_RULES: Record<string, AtRule> = { only: targetRule('only'), except: targetRule('except') };
+// At-rules that are planned: rejected with a pointer instead of "unsupported".
+const PLANNED = new Set(['media']);
 
 export function parseCss(original: string, file: string): { rules: Rule[]; errors: string[] } {
   const rules: Rule[] = [];
@@ -28,21 +62,7 @@ export function parseCss(original: string, file: string): { rules: Rule[]; error
   };
   const source = blankComments(original, (offset) => fail(offset, 'unterminated comment'));
 
-  let pos = 0;
-  while (pos < source.length) {
-    const atRule = /^\s*(@[\w-]+)/.exec(source.slice(pos));
-    if (atRule) {
-      fail(pos + atRule[0].length - atRule[1].length, `unsupported at-rule "${atRule[1]}" in v1`);
-      pos = endOfAtRule(source, pos);
-      continue;
-    }
-    const open = source.indexOf('{', pos);
-    if (open < 0) break;
-    const close = source.indexOf('}', open);
-    if (close < 0) {
-      fail(open, 'unclosed block, expected "}"');
-      break;
-    }
+  const parseRule = (pos: number, open: number, close: number, conditions: Condition[]): Rule => {
     const selectors: Selector[] = [];
     for (const part of splitWithOffsets(source.slice(pos, open), ',', pos)) {
       const text = part.text.trim();
@@ -89,9 +109,60 @@ export function parseCss(original: string, file: string): { rules: Rule[]; error
       }
       declarations.push({ property, value, loc: locOf(propertyAt) });
     }
-    rules.push({ selectors, declarations, order: rules.length });
-    pos = close + 1;
-  }
+    return { selectors, declarations, order: rules.length, ...(conditions.length ? { conditions } : {}) };
+  };
+
+  const parseRules = (from: number, to: number, conditions: Condition[]): void => {
+    let pos = from;
+    while (pos < to) {
+      const atRule = /^\s*@([\w-]+)/.exec(source.slice(pos, to));
+      if (atRule) {
+        const name = atRule[1];
+        const nameAt = pos + atRule[0].length - name.length - 1;
+        const end = endOfAtRule(source, pos);
+        const spec = AT_RULES[name];
+        if (!spec) {
+          fail(nameAt, PLANNED.has(name) ? `@${name} is not supported yet: it comes next` : `unsupported at-rule "@${name}" in v1`);
+          pos = end;
+          continue;
+        }
+        const open = source.indexOf('{', nameAt);
+        if (open < 0 || open >= end) {
+          fail(nameAt, `@${name} needs a { ... } block`);
+          pos = end;
+          continue;
+        }
+        const enclosing = conditions.find((c) => c.kind === 'target');
+        if (enclosing) {
+          fail(nameAt, `@${name} cannot be nested inside @${enclosing.mode}`);
+          pos = end;
+          continue;
+        }
+        const close = matchingBrace(source, open);
+        if (close < 0) {
+          fail(open, 'unclosed block, expected "}"');
+          return;
+        }
+        const preludeAt = nameAt + 1 + name.length;
+        const condition = spec.condition(source.slice(preludeAt, open), preludeAt, nameAt, fail);
+        // An invalid prelude was reported already; its rules are still parsed so their own mistakes show up.
+        parseRules(open + 1, close, condition ? [...conditions, condition] : conditions);
+        pos = close + 1;
+        continue;
+      }
+      const open = source.indexOf('{', pos);
+      if (open < 0 || open >= to) break;
+      const close = source.indexOf('}', open);
+      if (close < 0 || close >= to) {
+        fail(open, 'unclosed block, expected "}"');
+        break;
+      }
+      rules.push(parseRule(pos, open, close, conditions));
+      pos = close + 1;
+    }
+  };
+
+  parseRules(0, source.length, []);
   const errors = found
     .sort((a, b) => a.offset - b.offset)
     .map(({ offset, message }) => `${file}:${locOf(offset).join(':')}: ${message}`);
@@ -108,6 +179,16 @@ function splitWithOffsets(text: string, separator: string, base: number): { text
     }
   }
   return parts;
+}
+
+/** Offset of the "}" that closes the "{" at `open`, or -1. */
+function matchingBrace(source: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    else if (source[i] === '}' && --depth === 0) return i;
+  }
+  return -1;
 }
 
 /** Offset just after the block or statement that an @-rule starting at `from` spans. */
