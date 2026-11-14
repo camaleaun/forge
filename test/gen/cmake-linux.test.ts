@@ -42,3 +42,21 @@ describe('given an app with language packs', () => {
     assert.ok(cmake.includes('PkgConfig::SOUP3'));
   });
 });
+
+describe('given the install rules', () => {
+  const options = { appId: 'local.forge.hello', icon: false };
+  it('when generating, then the binary, .desktop and metainfo go to the standard directories', () => {
+    const cmake = generateCmakeLinux(helloIr(), false, options);
+    assert.ok(cmake.includes('include(GNUInstallDirs)'));
+    assert.ok(cmake.includes('install(TARGETS hello RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})'));
+    assert.ok(cmake.includes('install(FILES local.forge.hello.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)'));
+    assert.ok(cmake.includes('install(FILES local.forge.hello.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)'));
+  });
+  it('when the app has an icon, then the hicolor tree is installed; otherwise it is not', () => {
+    assert.ok(generateCmakeLinux(helloIr(), false, { ...options, icon: true }).includes('install(DIRECTORY icons/hicolor DESTINATION ${CMAKE_INSTALL_DATADIR}/icons)'));
+    assert.ok(!generateCmakeLinux(helloIr(), false, options).includes('icons/hicolor'));
+  });
+  it('when the app id comes from package.json, then the file names follow it', () => {
+    assert.ok(generateCmakeLinux(helloIr(), false, { appId: 'org.example.Hello', icon: false }).includes('install(FILES org.example.Hello.desktop'));
+  });
+});

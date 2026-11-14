@@ -23,3 +23,8 @@ target_compile_options(hello PRIVATE
   -Os -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections -fvisibility=hidden -Wall -Wextra)
 target_link_options(hello PRIVATE -Wl,--gc-sections,--as-needed -s)
 target_link_libraries(hello PRIVATE PkgConfig::GTK4)
+
+include(GNUInstallDirs)
+install(TARGETS hello RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES local.forge.hello.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES local.forge.hello.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)

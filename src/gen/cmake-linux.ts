@@ -1,8 +1,13 @@
 import type { Ir } from '../ir/types.ts';
+import { appIdFor } from '../project/app-id.ts';
 
 // CMake project for the Linux target: GTK 4 from pkg-config (never bundled), plus libsoup 3 for apps
-// that download language packs. Milestones L7 and L8 add the install rules and CPack.
-export function generateCmakeLinux(ir: Ir, i18n = false): string {
+// that download language packs. The install rules follow the freedesktop layout; CPack is below.
+export type CmakeLinuxOptions = { appId?: string; icon?: boolean };
+
+export function generateCmakeLinux(ir: Ir, i18n = false, options: CmakeLinuxOptions = {}): string {
+  const appId = options.appId ?? appIdFor(ir.app, 'linux');
+  const icon = options.icon ?? !!ir.app.icon;
   const { name, version } = ir.app;
   // CMake's project(VERSION) only accepts numeric x.y.z.w: the prerelease suffix lives in the package version.
   const numericVersion = version.replace(/[-+].*$/, '');
@@ -34,5 +39,10 @@ target_compile_options(${name} PRIVATE
   -Os -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections -fvisibility=hidden -Wall -Wextra)
 target_link_options(${name} PRIVATE -Wl,--gc-sections,--as-needed -s)
 target_link_libraries(${name} PRIVATE PkgConfig::GTK4${soupLink})
-`;
+
+include(GNUInstallDirs)
+install(TARGETS ${name} RUNTIME DESTINATION \${CMAKE_INSTALL_BINDIR})
+install(FILES ${appId}.desktop DESTINATION \${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES ${appId}.metainfo.xml DESTINATION \${CMAKE_INSTALL_DATADIR}/metainfo)
+${icon ? 'install(DIRECTORY icons/hicolor DESTINATION \${CMAKE_INSTALL_DATADIR}/icons)\n' : ''}`;
 }

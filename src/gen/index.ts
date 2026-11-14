@@ -5,6 +5,8 @@ import { buildIcns } from '../icon/icns.ts';
 import { buildGlassIcon } from '../icon/glass.ts';
 import type { GlassLayers } from '../icon/glass.ts';
 import { encodePng } from '../dmg/png.ts';
+import { rasterizeSvg } from '../icon/raster.ts';
+import { parseSvg } from '../icon/svg.ts';
 import { withBuiltinMessages } from '../i18n/builtin.ts';
 import type { Ir } from '../ir/types.ts';
 import { appIdFor } from '../project/app-id.ts';
@@ -15,7 +17,8 @@ import { generateCmake } from './cmake.ts';
 import { generateCmakeLinux } from './cmake-linux.ts';
 import { generateDmgSetupScript } from './dmg.ts';
 import type { I18nGenOptions } from './i18n-options.ts';
-import { generateDesktopEntry } from './linux-desktop.ts';
+import { generateDesktopEntry, generateMetainfo } from './linux-desktop.ts';
+import type { PackageMeta } from './linux-desktop.ts';
 import { generateLinuxUi } from './linux.ts';
 import { generateMacosUi } from './macos.ts';
 import { generateMessagesCpp } from './messages-cpp.ts';
@@ -44,14 +47,14 @@ function dmgBackground(scale: 1 | 2): Uint8Array {
 }
 
 // Returns relative path -> file content for the generated (not runtime) files.
-export function generateProject(source: Ir, target: string, options: { iconSvg?: string; glassLayers?: GlassLayers; i18n?: I18nGenOptions; appId?: string } = {}): ProjectFiles {
+export function generateProject(source: Ir, target: string, options: { iconSvg?: string; glassLayers?: GlassLayers; i18n?: I18nGenOptions; appId?: string; meta?: PackageMeta } = {}): ProjectFiles {
   const i18nMode = hasPacks(options.i18n);
   // forge's own help texts become messages in i18n mode so the packs can translate them.
   const ir = i18nMode ? withBuiltinMessages(source) : source;
   if (!TARGETS.includes(target)) throw new Error(`unsupported target "${target}" (supported: ${TARGETS.join(', ')})`);
   if (ir.app.icon && options.iconSvg === undefined) throw new Error('the app has an icon but no icon.svg source was given');
   const i18n = hasPacks(options.i18n) ? options.i18n : undefined;
-  if (target === 'linux') return generateLinuxProject(ir, i18n, options.appId ?? appIdFor(ir.app, 'linux'));
+  if (target === 'linux') return generateLinuxProject(ir, i18n, options.appId ?? appIdFor(ir.app, 'linux'), options.iconSvg, options.meta ?? {});
   const files: ProjectFiles = new Map([
     ['forge_app.hpp', generateAppHeader(ir, !!i18n)],
     ['actions.cpp', generateActionsCpp(ir, !!i18n)],
@@ -68,16 +71,27 @@ export function generateProject(source: Ir, target: string, options: { iconSvg?:
   return files;
 }
 
-function generateLinuxProject(ir: Ir, i18n: I18nGenOptions | undefined, appId: string): ProjectFiles {
+// Sizes of the hicolor theme the forge rasterizes (the SVG is installed as the scalable icon).
+export const LINUX_ICON_SIZES = [16, 32, 48, 64, 128, 256, 512];
+
+function generateLinuxProject(ir: Ir, i18n: I18nGenOptions | undefined, appId: string, iconSvg: string | undefined, meta: PackageMeta): ProjectFiles {
   const files: ProjectFiles = new Map([
     ['forge_app.hpp', generateAppHeader(ir, !!i18n)],
     ['actions.cpp', generateActionsCpp(ir, !!i18n)],
     ['cli_router.cpp', generateCliRouter(ir, !!i18n)],
     ['ui_linux.cpp', generateLinuxUi(ir, appId, i18n)],
-    ['CMakeLists.txt', generateCmakeLinux(ir, !!i18n)],
-    [`${appId}.desktop`, generateDesktopEntry(ir, appId)],
+    ['CMakeLists.txt', generateCmakeLinux(ir, !!i18n, { appId, icon: !!ir.app.icon })],
+    [`${appId}.desktop`, generateDesktopEntry(ir, appId, meta)],
+    [`${appId}.metainfo.xml`, generateMetainfo(ir, appId, meta)],
   ]);
   if (i18n) files.set('messages.cpp', generateMessagesCpp(ir, i18n));
+  if (ir.app.icon && iconSvg !== undefined) {
+    const doc = parseSvg(iconSvg);
+    for (const size of LINUX_ICON_SIZES) {
+      files.set(`icons/hicolor/${size}x${size}/apps/${appId}.png`, encodePng(size, size, rasterizeSvg(doc, size)));
+    }
+    files.set(`icons/hicolor/scalable/apps/${appId}.svg`, iconSvg);
+  }
   return files;
 }
 

@@ -7,6 +7,7 @@ import { loadProjectI18n } from '../i18n/project.ts';
 import type { Ir } from '../ir/types.ts';
 import { appIdFor } from '../project/app-id.ts';
 import { buildProjectIr } from '../project/build.ts';
+import { readPackageMeta } from '../project/package-meta.ts';
 
 export type BuildOptions = { project: string; target: string; out: string; strictI18n?: boolean };
 
@@ -50,7 +51,7 @@ export async function build(options: BuildOptions): Promise<number> {
   };
   let files: ProjectFiles;
   try {
-    files = generateProject(ir, options.target, { iconSvg, glassLayers, appId, ...(i18nOptions ? { i18n: i18nOptions } : {}) });
+    files = generateProject(ir, options.target, { iconSvg, glassLayers, appId, meta: readPackageMeta(resolve(options.project)), ...(i18nOptions ? { i18n: i18nOptions } : {}) });
   } catch (error) {
     console.error(`error: ${(error as Error).message}`);
     return 1;

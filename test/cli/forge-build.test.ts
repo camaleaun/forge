@@ -314,10 +314,32 @@ describe('given forge build --target linux', () => {
       const result = forge('build', '--project', fixture, '--target', 'linux', '--out', target);
       assert.equal(result.status, 0, result.stderr);
       assert.deepEqual(readdirSync(target).sort(), [
-        'CMakeLists.txt', 'actions.cpp', 'cli_router.cpp', 'cli_surface.hpp', 'forge_app.hpp', 'local.forge.hello.desktop', 'main.cpp', 'ui_linux.cpp',
+        'CMakeLists.txt', 'actions.cpp', 'cli_router.cpp', 'cli_surface.hpp', 'forge_app.hpp', 'local.forge.hello.desktop', 'local.forge.hello.metainfo.xml', 'main.cpp', 'ui_linux.cpp',
       ]);
     } finally {
       rmSync(target, { recursive: true, force: true });
     }
+  });
+});
+
+describe('given forge build --target linux with package metadata and an icon', () => {
+  it('when building, then the metainfo and .desktop carry description, license and homepage, and the icons are written', () => {
+    const target = mkdtempSync(join(tmpdir(), 'forge-linux-meta-'));
+    withProjectCopy((dir) => {
+      const path = join(dir, 'package.json');
+      const pkg = JSON.parse(readFileSync(path, 'utf8'));
+      writeFileSync(path, JSON.stringify({ ...pkg, description: 'Says hello', license: 'MIT', homepage: 'https://example.org/hello', forge: { ...pkg.forge, appId: 'org.example.Hello' } }));
+      writeFileSync(join(dir, 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#09f"/></svg>');
+    }, (dir) => {
+      const result = forge('build', '--project', dir, '--target', 'linux', '--out', target);
+      assert.equal(result.status, 0, result.stderr);
+      const metainfo = readFileSync(join(target, 'org.example.Hello.metainfo.xml'), 'utf8');
+      assert.ok(metainfo.includes('<project_license>MIT</project_license>'));
+      assert.ok(metainfo.includes('<url type="homepage">https://example.org/hello</url>'));
+      assert.ok(readFileSync(join(target, 'org.example.Hello.desktop'), 'utf8').includes('Comment=Says hello'));
+      assert.ok(readFileSync(join(target, 'ui_linux.cpp'), 'utf8').includes('"org.example.Hello"'));
+      assert.ok(readdirSync(join(target, 'icons/hicolor/48x48/apps')).includes('org.example.Hello.png'));
+    });
+    rmSync(target, { recursive: true, force: true });
   });
 });

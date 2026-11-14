@@ -83,7 +83,7 @@ describe('given the hello IR and the linux target', () => {
   it('when generating the project, then the Linux sources and the .desktop are returned, with no macOS or DMG files', () => {
     const files = generateProject(helloIr(), 'linux');
     assert.deepEqual([...files.keys()].sort(), [
-      'CMakeLists.txt', 'actions.cpp', 'cli_router.cpp', 'forge_app.hpp', 'local.forge.hello.desktop', 'ui_linux.cpp',
+      'CMakeLists.txt', 'actions.cpp', 'cli_router.cpp', 'forge_app.hpp', 'local.forge.hello.desktop', 'local.forge.hello.metainfo.xml', 'ui_linux.cpp',
     ]);
   });
   it('when the app name has a dash, then the .desktop is named after the dash-free id', () => {
