@@ -24,6 +24,9 @@ export type LayoutVariant = { query: MediaQuery; set: Changes };
 
 export type LayoutNode = {
   id: string;
+  role?: 'steps' | 'step';  // <steps> has no visual of its own; each <step> is a screen
+  step?: Node['step'];      // the window size of a screen
+  disabledDuringDownload?: boolean;
   kind: 'box' | 'text' | 'button' | 'select' | 'progress';
   title?: TextValue;      // the window title (root only)
   horizontal: boolean;    // main axis of the box
@@ -123,12 +126,6 @@ export function effective<K extends keyof Changes>(
   return expr;
 }
 
-// The native generators do not lay out <steps> yet; they stop with a clear error instead of generating a wrong window.
-export function assertNoSteps(root: Node, target: string): void {
-  const found = (node: Node): boolean => node.kind === 'steps' || node.children.some(found);
-  if (found(root)) throw new Error(`steps are not supported by the ${target} generator yet`);
-}
-
 // English first, then the endonym of every pack (no "Auto": the dropdown shows the language in use).
 export function languageChoices(i18n: I18nGenOptions | undefined): [string, string][] {
   return [['en', 'English'], ...(i18n?.packs ?? []).map((pack): [string, string] => [pack.tag, languageName(pack.tag)])];
@@ -157,6 +154,9 @@ function build(node: Node, parent: LayoutNode | undefined, languages: [string, s
   if (height !== undefined) result.height = height;
   if (node.content !== undefined) result.content = node.content;
   if (node.on?.click !== undefined) result.handler = node.on.click;
+  if (node.kind === 'steps' || node.kind === 'step') result.role = node.kind;
+  if (node.step !== undefined) result.step = node.step;
+  if (node.disabledDuringDownload) result.disabledDuringDownload = true;
   if (node.progress !== undefined) result.progress = node.progress;
   if (node.variants) result.variants = node.variants.map((variant) => ({ query: variant.query, set: changesOf(variant.style) }));
   if (kind === 'select') result.languages = languages ?? [];

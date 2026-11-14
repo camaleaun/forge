@@ -19,7 +19,6 @@ import { generateDmgSetupScript } from './dmg.ts';
 import type { I18nGenOptions } from './i18n-options.ts';
 import { LINUX_ICON_SIZES, generateDesktopEntry, generateMetainfo } from './linux-desktop.ts';
 import type { PackageMeta } from './linux-desktop.ts';
-import { assertNoSteps } from './layout.ts';
 import { generateLinuxUi } from './linux.ts';
 import { generateMacosUi } from './macos.ts';
 import { generateMessagesCpp } from './messages-cpp.ts';
@@ -54,7 +53,6 @@ export function generateProject(source: Ir, target: string, options: { iconSvg?:
   // forge's own help texts become messages in i18n mode so the packs can translate them.
   const ir = i18nMode ? withBuiltinMessages(source) : source;
   if (!TARGETS.includes(target)) throw new Error(`unsupported target "${target}" (supported: ${TARGETS.join(', ')})`);
-  assertNoSteps(ir.root, target);
   if (ir.app.icon && options.iconSvg === undefined) throw new Error('the app has an icon but no icon.svg source was given');
   const i18n = hasPacks(options.i18n) ? options.i18n : undefined;
   if (target === 'linux') return generateLinuxProject(ir, i18n, options.appId ?? appIdFor(ir.app, 'linux'), options.iconSvg, options.meta ?? {});
