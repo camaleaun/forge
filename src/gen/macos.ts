@@ -57,6 +57,10 @@ function sizeConstraints(node: LayoutNode, v: string): string[] {
   return lines;
 }
 
+function descendants(node: LayoutNode): LayoutNode[] {
+  return node.children.flatMap((child) => [child, ...descendants(child)]);
+}
+
 function hasSelect(node: Node): boolean {
   return node.kind === 'select' || node.children.some(hasSelect);
 }
@@ -272,7 +276,11 @@ class Emitter {
   step(node: LayoutNode, v: string): void {
     const [width, height] = [node.step?.width ?? this.windowSize[0], node.step?.height ?? this.windowSize[1]];
     if (this.stepsSeen++ > 0) this.emit(`[${v} setHidden:YES];`);
-    this.emit(`g_surface.add_step(${v}, ${width}, ${height});`);
+    const marked = (flag: 'primary' | 'cancel'): string => {
+      const found = descendants(node).find((child) => child[flag]);
+      return found ? `w_${found.id}` : 'nil';
+    };
+    this.emit(`g_surface.add_step(${v}, ${width}, ${height}, ${marked('primary')}, ${marked('cancel')});`);
   }
 
   text(node: LayoutNode, parent: LayoutNode): void {
@@ -297,6 +305,11 @@ class Emitter {
     this.font(node, v);
     this.textVariants(node, v);
     this.content(node, v, true);
+    // Without screens the keys are fixed; with screens the surface moves them to the visible one.
+    if (stepIds(this.ir).length === 0) {
+      if (node.primary) this.emit(`[${v} setKeyEquivalent:@"\\r"];`);
+      if (node.cancel) this.emit(`[${v} setKeyEquivalent:@"\\033"];`);
+    }
     if (node.disabledDuringDownload && this.i18n) this.emit(`g_surface.bind_download_button(${v});`);
     this.emit(`[${v} setTag:${tag}];`, `[${v} setTarget:target];`, `[${v} setAction:@selector(invoke:)];`);
     this.attach(node, v, parent, `w_${parent.id}`);

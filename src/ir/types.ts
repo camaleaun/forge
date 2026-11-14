@@ -35,6 +35,9 @@ export type Node = {
   step?: { width?: number; height?: number };
   // A <button waitsForDownload>: disabled while a language pack download is in flight.
   disabledDuringDownload?: true;
+  // A <button primary> is the default button (Enter); a <button cancel> answers Escape. One of each per screen.
+  primary?: true;
+  cancel?: true;
   style: Style;
   // Set only when @media rules match this node: the base style stays in `style`.
   variants?: Variant[];

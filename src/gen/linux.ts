@@ -34,6 +34,10 @@ function cssProps(set: Pick<Changes, 'padding' | 'background' | 'radius' | 'colo
   return props;
 }
 
+function descendants(node: LayoutNode): LayoutNode[] {
+  return node.children.flatMap((child) => [child, ...descendants(child)]);
+}
+
 function hasVariants(node: LayoutNode): boolean {
   return node.variants !== undefined || node.children.some(hasVariants);
 }
@@ -45,6 +49,8 @@ function hasSelect(node: Node): boolean {
 class Emitter {
   readonly ir: Ir;
   readonly i18n: boolean;
+  steps = false;
+  readonly late: string[] = [];  // lines that need the whole window (a fixed default button and cancel button)
   windowSize: [number, number] = [DEFAULT_WIDTH, DEFAULT_HEIGHT];  // the root CSS size: a step without a side of its own uses it
   readonly lines: string[] = [];
   readonly css: string[] = [];
@@ -239,7 +245,11 @@ class Emitter {
     });
     if (node.role === 'step') {
       const size = [node.step?.width ?? this.windowSize[0], node.step?.height ?? this.windowSize[1]];
-      this.emit('', `g_surface.add_step(${v}, ${size[0]}, ${size[1]});`);
+      const marked = (flag: 'primary' | 'cancel'): string => {
+        const found = descendants(node).find((child) => child[flag]);
+        return found ? `w_${found.id}` : 'nullptr';
+      };
+      this.emit('', `g_surface.add_step(${v}, ${size[0]}, ${size[1]}, ${marked('primary')}, ${marked('cancel')});`);
     }
   }
 
@@ -264,6 +274,9 @@ class Emitter {
     this.emit(`GtkWidget* ${v} = gtk_button_new_with_label(${cppString(bound ? '' : this.textOf(node))});`);
     this.style(node, v);
     if (!this.bindContent(node, v, true) && node.content?.kind === 'state') this.emit(`g_surface.bind(StateId::${node.content.state}, ${v}, true);`);
+    if (node.primary) this.emit(`gtk_widget_add_css_class(${v}, "suggested-action");`);
+    if (node.primary && !this.steps) this.late.push(`gtk_window_set_default_widget(GTK_WINDOW(window), ${v});`);
+    if (node.cancel && !this.steps) this.late.push(`g_surface.set_cancel(${v});`);
     if (node.disabledDuringDownload && this.i18n) this.emit(`g_surface.bind_download_button(${v});`);
     this.emit(`g_signal_connect(${v}, "clicked", G_CALLBACK(on_click), GINT_TO_POINTER(${tag}));`);
     this.attach(node, v, parent, holder, first);
@@ -454,6 +467,18 @@ void on_language_selected(GObject* object, GParamSpec*, gpointer) {
 }
 `;
 
+// Escape presses the cancel button of the visible screen.
+const KEYS = `
+  GtkEventController* keys = gtk_event_controller_key_new();
+  g_signal_connect(keys, "key-pressed", G_CALLBACK(on_key), nullptr);
+  gtk_widget_add_controller(window, keys);`;
+
+const ON_KEY = `
+gboolean on_key(GtkEventControllerKey*, guint keyval, guint, GdkModifierType, gpointer) {
+  return keyval == GDK_KEY_Escape && g_surface.press_cancel() ? TRUE : FALSE;
+}
+`;
+
 const PULSE_BAR = `
 gboolean pulse_bar(gpointer bar) {
   gtk_progress_bar_pulse(GTK_PROGRESS_BAR(bar));
@@ -473,8 +498,10 @@ export function generateLinuxUi(ir: Ir, appId: string, i18n?: I18nGenOptions): s
   const firstStep = layout.children.find((child) => child.role === 'steps')?.children[0]?.step;
   const width = firstStep?.width ?? rootWidth;
   const height = firstStep?.height ?? rootHeight;
+  const hasCancel = JSON.stringify(ir.root).includes('"cancel":true');
   const emitter = new Emitter(ir, translated);
   emitter.windowSize = [rootWidth, rootHeight];
+  emitter.steps = steps;
   emitter.framed = hasVariants(layout);
   emitter.node(layout, undefined, undefined, true);
   const cases = emitter.handlers
@@ -518,7 +545,7 @@ void on_click(GtkButton*, gpointer data) {
   switch (GPOINTER_TO_INT(data)) {
 ${cases}  }
 }
-${emitter.pulses ? PULSE_BAR : ''}${translated && hasSelect(root) ? LANGUAGE_SELECTED : ''}
+${hasCancel ? ON_KEY : ''}${emitter.pulses ? PULSE_BAR : ''}${translated && hasSelect(root) ? LANGUAGE_SELECTED : ''}
 void on_quit(GSimpleAction*, GVariant*, gpointer app) { g_application_quit(G_APPLICATION(app)); }
 
 void activate(GtkApplication* app, gpointer) {
@@ -535,7 +562,7 @@ ${css}
 ${steps ? '  gtk_window_set_resizable(GTK_WINDOW(window), FALSE);' : `  gtk_widget_set_size_request(window, ${width}, ${height});`}
 
 ${emitter.lines.join('\n')}
-${translated ? '\n  g_surface.refresh_all();' : ''}${steps ? '\n  g_surface.start_steps(window);' : ''}
+${translated ? '\n  g_surface.refresh_all();' : ''}${emitter.late.map((line) => `\n  ${line}`).join('')}${steps ? '\n  g_surface.start_steps(window);' : ''}${hasCancel ? KEYS : ''}
   gtk_window_present(GTK_WINDOW(window));
 }
 

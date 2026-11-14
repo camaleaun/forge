@@ -189,6 +189,12 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
       else if (!input.translateLiterals) at(loc, '<button waitsForDownload> needs an languages/ folder with at least one language file');
       else node.disabledDuringDownload = true;
     }
+    for (const flag of ['primary', 'cancel'] as const) {
+      if (props[flag] === undefined) continue;
+      if (kind !== 'button') at(loc, `${flag} is only supported on <button>`);
+      else if (props[flag] !== true) at(loc, `${flag} is a bare attribute`);
+      else node[flag] = true;
+    }
     if (typeof props.title === 'string') node.title = literalOrMessage(props.title);
     else if (props.title instanceof Message) node.title = toTextValue(props.title);
     if (props.onClick !== undefined) {
@@ -225,6 +231,15 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
         }
       }
       node.children = vnode.children.filter(isVNode).map((child) => toNode(child, false, kind));
+      if (kind === 'step' || (kind === 'window' && !node.children.some((child) => child.kind === 'steps'))) {
+        const buttons: Node[] = [];
+        const collect = (n: Node): void => n.children.forEach((child) => (child.kind === 'button' ? buttons.push(child) : collect(child)));
+        collect(node);
+        for (const flag of ['primary', 'cancel'] as const) {
+          const marked = buttons.filter((button) => button[flag]);
+          if (marked.length > 1) at(marked[1].loc, `a <${kind}> can have only one ${flag} button`);
+        }
+      }
       if (kind === 'window' && node.children.some((child) => child.kind === 'steps')) {
         const stepsNodes = node.children.filter((child) => child.kind === 'steps');
         if (stepsNodes.length > 1) at(stepsNodes[1].loc, 'a <window> can have only one <steps>');

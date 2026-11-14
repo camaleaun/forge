@@ -64,10 +64,9 @@ after(() => {
 });
 
 // The window opens in pt-BR (so the pack downloads at once); the driver reports the buttons now and after waiting.
-function reports(): Promise<string[]> {
+function reports(wait = ['wait', 'wait', 'wait']): Promise<string[]> {
   const cache = mkdtempSync(join(tmpdir(), 'forge-steps-cache-'));
   const env = { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', LANG: 'en_US.UTF-8', GDK_BACKEND: 'x11', FORGE_I18N_CACHE_DIR: join(cache, 'lang'), FORGE_I18N_BASE_URL: base, FORGE_LANG_PREFERENCE: 'pt-BR' };
-  const wait = ['wait', 'wait', 'wait'];
   const command = onLinux ? ['xvfb-run', ['-a', '-s', '-screen 0 1280x800x24', binary, ...wait]] : [binary, wait];
   const child = spawn(command[0] as string, command[1] as string[], { env });
   let stdout = '';
@@ -81,6 +80,19 @@ function reports(): Promise<string[]> {
 }
 
 describe('given the language screen of a steps app while a pack downloads', { skip: !canRun && SKIP }, () => {
+  it('when Enter is pressed while OK (the primary button) is disabled, then nothing happens; when the download ends, then Enter goes to the next screen', async () => {
+    handler = async (_req, res) => {
+      const body = Buffer.from(PACK);
+      res.writeHead(200, { 'Content-Length': body.length });
+      res.write(body.subarray(0, 1000));
+      await pause(1400);
+      res.end(body.subarray(1000));
+    };
+    const lines = await reports(['key:Enter', 'wait', 'wait', 'wait', 'wait', 'key:Enter']);
+    assert.match(lines[1], /^420x180 /, 'Enter during the download does not leave the screen');
+    assert.match(lines.at(-1)!, /^600x440 /, 'Enter after the download goes to the second screen');
+  });
+
   it('when the download is in flight, then OK is disabled; when it ends, then OK is enabled again (Cancel is never disabled)', async () => {
     handler = async (_req, res) => {
       const body = Buffer.from(PACK);

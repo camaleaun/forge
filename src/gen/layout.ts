@@ -27,6 +27,8 @@ export type LayoutNode = {
   role?: 'steps' | 'step';  // <steps> has no visual of its own; each <step> is a screen
   step?: Node['step'];      // the window size of a screen
   disabledDuringDownload?: boolean;
+  primary?: boolean;  // the default button (Enter)
+  cancel?: boolean;   // answers Escape
   kind: 'box' | 'text' | 'button' | 'select' | 'progress';
   title?: TextValue;      // the window title (root only)
   horizontal: boolean;    // main axis of the box
@@ -159,6 +161,8 @@ function build(node: Node, parent: LayoutNode | undefined, languages: [string, s
   // The screens fill the window, so a footer (a last child after a growing one) sits at the bottom edge.
   if (result.role !== undefined) result.grow = true;
   if (node.disabledDuringDownload) result.disabledDuringDownload = true;
+  if (node.primary) result.primary = true;
+  if (node.cancel) result.cancel = true;
   if (node.progress !== undefined) result.progress = node.progress;
   if (node.variants) result.variants = node.variants.map((variant) => ({ query: variant.query, set: changesOf(variant.style) }));
   if (kind === 'select') result.languages = languages ?? [];

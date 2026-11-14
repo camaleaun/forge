@@ -65,6 +65,9 @@ describe('given a generated GTK app with two screens, running in a real window',
   it('when goTo names the first screen from the second, then it returns by id', () => {
     assert.equal(lines('Next', 'Again')[2], '420x180 resizable=0 Next Back');
   });
+  it('when Enter activates the default widget, then the primary button of the visible screen fires; Escape reaches the cancel button (both stop at the ends)', () => {
+    assert.deepEqual(lines('key:Enter', 'key:Enter', 'key:Escape', 'key:Escape').map((line) => line.slice(0, 7)), ['420x180', '600x200', '600x200', '420x180', '420x180']);
+  });
   it('when Quit is clicked, then the app ends by itself (no further report)', () => {
     assert.equal(lines('Next', 'Quit').length, 2);
   });

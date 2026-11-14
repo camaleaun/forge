@@ -21,8 +21,8 @@ export default function App() {
           <select language />
           <progress source="language-download" />
           <view class="buttons">
-            <button waitsForDownload onClick={confirm}>OK</button>
-            <button onClick={quit}>Cancel</button>
+            <button primary waitsForDownload onClick={confirm}>OK</button>
+            <button cancel onClick={quit}>Cancel</button>
           </view>
         </step>
         <step id="hello" width={600} height={440}>
@@ -30,8 +30,8 @@ export default function App() {
           <button onClick={greet}>Greet</button>
           <view class="buttons">
             <button onClick={back}>Back</button>
-            <button onClick={goTo('language')}>Language</button>
-            <button onClick={quit}>Close</button>
+            <button primary onClick={goTo('language')}>Language</button>
+            <button cancel onClick={quit}>Close</button>
           </view>
         </step>
       </steps>

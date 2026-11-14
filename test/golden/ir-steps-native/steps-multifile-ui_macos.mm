@@ -71,7 +71,7 @@ class CocoaSurface : public Surface {
   }
 
   // <steps>: one page per screen; showing one hides the others and sizes the window to it.
-  void add_step(NSView* page, int width, int height) { steps_.push_back({page, width, height}); }
+  void add_step(NSView* page, int width, int height, NSButton* primary, NSButton* cancel) { steps_.push_back({page, width, height, primary, cancel}); }
   void start_steps(NSWindow* window) {
     window_ = window;
     show(0);
@@ -80,17 +80,22 @@ class CocoaSurface : public Surface {
   void go_back() override { show(current_ > 0 ? current_ - 1 : 0); }
   void go_step(StepId id) override { show(static_cast<std::size_t>(id)); }
   void quit() override { [NSApp terminate:nil]; }
-
  private:
   struct Step {
     NSView* view;
     int width;
     int height;
+    NSButton* primary;
+    NSButton* cancel;
   };
   void show(std::size_t index) {
     if (index >= steps_.size()) return;
     current_ = index;
-    for (std::size_t i = 0; i < steps_.size(); ++i) [steps_[i].view setHidden:i != index];
+    for (std::size_t i = 0; i < steps_.size(); ++i) {
+      [steps_[i].view setHidden:i != index];
+      [steps_[i].primary setKeyEquivalent:i == index ? @"\r" : @""];
+      [steps_[i].cancel setKeyEquivalent:i == index ? @"\033" : @""];
+    }
     [window_ setContentSize:NSMakeSize(steps_[index].width, steps_[index].height)];
   }
   std::vector<Step> steps_;
@@ -304,7 +309,7 @@ int forge_app::run_ui(int argc, char** argv) {
     [w_button_8 setAction:@selector(invoke:)];
     [w_view_6 addView:w_button_8 inGravity:NSStackViewGravityLeading];
     [[[w_button_8 heightAnchor] constraintEqualToAnchor:[w_view_6 heightAnchor]] setActive:YES];
-    g_surface.add_step(w_language, 420, 180);
+    g_surface.add_step(w_language, 420, 180, w_button_7, w_button_8);
 
     NSStackView* w_hello = [[NSStackView alloc] init];
     [w_hello setTranslatesAutoresizingMaskIntoConstraints:NO];
@@ -369,7 +374,7 @@ int forge_app::run_ui(int argc, char** argv) {
     [w_view_12 addView:w_button_15 inGravity:NSStackViewGravityLeading];
     [[[w_button_15 heightAnchor] constraintEqualToAnchor:[w_view_12 heightAnchor]] setActive:YES];
     [w_hello setHidden:YES];
-    g_surface.add_step(w_hello, 600, 440);
+    g_surface.add_step(w_hello, 600, 440, w_button_14, w_button_15);
 
     g_surface.refresh_all();
     g_surface.start_steps(window);

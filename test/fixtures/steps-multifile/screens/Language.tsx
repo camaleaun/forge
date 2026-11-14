@@ -12,8 +12,8 @@ export default function Language() {
       <select language />
       <progress source="language-download" />
       <view class="buttons">
-        <button waitsForDownload onClick={confirm}>OK</button>
-        <button onClick={quit}>Cancel</button>
+        <button primary waitsForDownload onClick={confirm}>OK</button>
+        <button cancel onClick={quit}>Cancel</button>
       </view>
     </step>
   );

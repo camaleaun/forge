@@ -11,11 +11,11 @@ export function stepsIr(): Ir {
   ir.root.children = [
     node('steps', 'steps_1', {
       children: [
-        node('step', 'first', { step: { width: 420, height: 180 }, style: { gap: 8 }, children: [button('b1', 'Next', 'next'), button('b2', 'Back', 'back')] }),
+        node('step', 'first', { step: { width: 420, height: 180 }, style: { gap: 8 }, children: [{ ...button('b1', 'Next', 'next'), primary: true }, { ...button('b2', 'Back', 'back'), cancel: true }] }),
         node('step', 'second', {
           step: { width: 600 },
           style: { gap: 8 },
-          children: [button('b3', 'Back', 'back'), button('b4', 'Again', 'again'), button('b5', 'Next', 'next'), button('b6', 'Quit', 'quit')],
+          children: [{ ...button('b3', 'Back', 'back'), cancel: true }, button('b4', 'Again', 'again'), { ...button('b5', 'Next', 'next'), primary: true }, button('b6', 'Quit', 'quit')],
         }),
       ],
     }),

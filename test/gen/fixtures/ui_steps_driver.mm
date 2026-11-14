@@ -67,6 +67,15 @@ void step() {
   report();
   if (g_next >= g_clicks.size()) std::exit(0);
   const std::string title = g_clicks[g_next++];
+  if (title == "key:Enter" || title == "key:Escape") {
+    NSWindow* window = [[NSApp windows] firstObject];
+    NSString* characters = title == "key:Enter" ? @"\r" : @"\033";
+    NSEvent* event = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:0 timestamp:0 windowNumber:[window windowNumber] context:nil
+                                    characters:characters charactersIgnoringModifiers:characters isARepeat:NO keyCode:title == "key:Enter" ? 36 : 53];
+    [NSApp activateIgnoringOtherApps:YES];
+    [window makeKeyAndOrderFront:nil];
+    [NSApp sendEvent:event];
+  }
   int w = 0, h = 0;
   if (std::sscanf(title.c_str(), "%dx%d", &w, &h) == 2) [[[NSApp windows] firstObject] setContentSize:NSMakeSize(w, h)];
   for (NSButton* button in visible_buttons()) {

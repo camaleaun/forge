@@ -66,6 +66,19 @@ gboolean step(gpointer) {
   report();
   if (g_next >= g_clicks.size()) std::exit(0);
   const std::string label = g_clicks[g_next++];
+  if (label == "key:Enter") gtk_window_activate_default(the_window());  // what Enter does in a window with a default widget
+  if (label == "key:Escape") {
+    // The window's key controller gets the Escape key press (the display server's own key delivery is GTK's job).
+    GListModel* controllers = gtk_widget_observe_controllers(GTK_WIDGET(the_window()));
+    for (guint i = 0; i < g_list_model_get_n_items(controllers); ++i) {
+      GtkEventController* controller = GTK_EVENT_CONTROLLER(g_list_model_get_item(controllers, i));
+      gboolean handled = FALSE;
+      if (GTK_IS_EVENT_CONTROLLER_KEY(controller)) g_signal_emit_by_name(controller, "key-pressed", static_cast<guint>(GDK_KEY_Escape), 0u, 0, &handled);
+      g_object_unref(controller);
+      if (handled) break;
+    }
+    g_object_unref(controllers);
+  }
   int w = 0, h = 0;
   if (std::sscanf(label.c_str(), "%dx%d", &w, &h) == 2) {
     gtk_window_set_default_size(the_window(), w, h);

@@ -60,6 +60,26 @@ describe('given the steps-app fixture (a language screen and a hello screen)', (
     });
   }
 
+  it('when generating macOS, then each screen hands its primary and cancel buttons to the surface, which owns the key equivalents', async () => {
+    const source = generateMacosUi(await irOf('steps-app', 'macos'), options);
+    assert.match(source, /add_step\(w_language, 420, 180, w_button_\d+, w_button_\d+\);/);
+    assert.match(source, /add_step\(w_hello, 600, 440, w_button_\d+, w_button_\d+\);/);
+    assert.ok(source.includes('setKeyEquivalent:i == index ? @"\\r" : @""') && source.includes('@"\\033"'));
+  });
+
+  it('when generating Linux, then the primary buttons are suggested actions, the default widget follows the screen and Escape presses cancel', async () => {
+    const source = generateLinuxUi(await irOf('steps-app', 'linux'), 'dev.forge.steps', options);
+    assert.match(source, /add_step\(w_language, 420, 180, w_button_\d+, w_button_\d+\);/);
+    assert.equal(source.match(/gtk_widget_add_css_class\(w_button_\d+, "suggested-action"\);/g)?.length, 2);
+    assert.ok(source.includes('gtk_window_set_default_widget(GTK_WINDOW(window_), steps_[index].primary);'));
+    assert.ok(source.includes('GDK_KEY_Escape') && source.includes('gtk_widget_add_controller(window, keys);'));
+  });
+
+  it('when an app has no primary or cancel button, then none of the key code is generated (binary size)', () => {
+    assert.ok(!generateMacosUi(helloIr()).includes('setKeyEquivalent'));
+    assert.ok(!generateLinuxUi(helloIr(), 'dev.forge.hello').includes('GDK_KEY_Escape'));
+  });
+
   it('when generating a project for either target, then it works and Cancel quits', async () => {
     for (const target of ['macos', 'linux'] as const) {
       const files = generateProject(await irOf('steps-app', target), target, { i18n: options });

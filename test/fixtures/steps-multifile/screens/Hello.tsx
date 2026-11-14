@@ -14,8 +14,8 @@ export default function Hello() {
       <button onClick={greet}>Greet</button>
       <view class="buttons">
         <button onClick={back}>Back</button>
-        <button onClick={goTo('language')}>Language</button>
-        <button onClick={quit}>Close</button>
+        <button primary onClick={goTo('language')}>Language</button>
+        <button cancel onClick={quit}>Close</button>
       </view>
     </step>
   );

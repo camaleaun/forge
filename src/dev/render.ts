@@ -129,7 +129,8 @@ function renderNode(node: Node, ir: Ir, texts: Texts, languages: string[], hidde
     case 'button': {
       const click = node.on?.click ? ` data-click="${esc(node.on.click)}"` : '';
       const waits = node.disabledDuringDownload ? ' data-waits-download' : '';
-      return `<button type="button"${attrs}${bound}${click}${waits}${style}>${text}</button>`;
+      const marks = (node.primary ? ' data-primary' : '') + (node.cancel ? ' data-cancel' : '');
+      return `<button type="button"${attrs}${bound}${click}${waits}${marks}${style}>${text}</button>`;
     }
     default:
       return `<div${attrs}${style}>${children}</div>`;
@@ -141,6 +142,7 @@ const RELOAD = `try{new EventSource('/events').onmessage=function(e){if(e.data==
 // Light and dark follow the system (prefers-color-scheme); the app's own CSS colours are left as authored.
 const CSS = `:root{color-scheme:light dark}
 progress[hidden]{display:none}
+button[data-primary]{outline:2px solid #0a84ff;outline-offset:-1px}
 [data-step][hidden]{display:none!important}
 #forge-notice{padding:8px 16px;font-size:13px;background:#fff3cd;color:#533f03}
 body{margin:0;padding:0;font-family:system-ui,sans-serif;background:#fff;color:#222}
@@ -197,6 +199,18 @@ function showStep(to){
   current=at;
   for(var j=0;j<steps.length;j++)steps[j].hidden=j!==current;
 }
+// Enter fires the primary button and Escape the cancel button of the visible step (a disabled button does nothing).
+function pressKey(name){
+  var found=all('['+name+']').filter(function(b){return !b.disabled&&!(b.closest&&b.closest('[data-step][hidden]'));})[0];
+  if(found)found.click();
+  return !!found;
+}
+if(document.addEventListener)document.addEventListener('keydown',function(e){
+  var tag=e.target&&e.target.tagName;
+  if(tag==='TEXTAREA'||tag==='SELECT'||e.defaultPrevented)return;
+  if(e.key==='Enter'&&tag!=='BUTTON'&&pressKey('data-primary'))e.preventDefault();
+  else if(e.key==='Escape'&&pressKey('data-cancel'))e.preventDefault();
+});
 function notice(show){var n=document.getElementById('forge-notice');if(n)n.hidden=!show;}
 function run(id){
   var printed=[];

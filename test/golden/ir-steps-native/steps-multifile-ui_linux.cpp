@@ -89,32 +89,45 @@ class GtkSurface : public Surface {
   }
 
   // <steps>: one page per screen; showing one hides the others and sizes the window to it.
-  void add_step(GtkWidget* page, int width, int height) { steps_.push_back({page, width, height}); }
+  void add_step(GtkWidget* page, int width, int height, GtkWidget* primary, GtkWidget* cancel) { steps_.push_back({page, width, height, primary, cancel}); }
   void start_steps(GtkWidget* window) {
     window_ = window;
     show(0);
+  }
+  // Escape: presses the cancel button of the visible screen (if it can be pressed).
+  void set_cancel(GtkWidget* button) { cancel_ = button; }
+  bool press_cancel() {
+    if (!cancel_ || !gtk_widget_is_sensitive(cancel_)) return false;
+    gtk_widget_activate(cancel_);
+    return true;
   }
   void go_next() override { show(current_ + 1 < steps_.size() ? current_ + 1 : current_); }
   void go_back() override { show(current_ > 0 ? current_ - 1 : 0); }
   void go_step(StepId id) override { show(static_cast<std::size_t>(id)); }
   void quit() override { g_application_quit(g_application_get_default()); }
-
  private:
   struct Step {
     GtkWidget* view;
     int width;
     int height;
+    GtkWidget* primary;
+    GtkWidget* cancel;
   };
   void show(std::size_t index) {
     if (index >= steps_.size()) return;
     current_ = index;
-    for (std::size_t i = 0; i < steps_.size(); ++i) gtk_widget_set_visible(steps_[i].view, i == index);
+    for (std::size_t i = 0; i < steps_.size(); ++i) {
+      gtk_widget_set_visible(steps_[i].view, i == index);
+    }
     gtk_window_set_default_size(GTK_WINDOW(window_), steps_[index].width, steps_[index].height);
     gtk_widget_set_size_request(gtk_window_get_child(GTK_WINDOW(window_)), steps_[index].width, steps_[index].height);
+    gtk_window_set_default_widget(GTK_WINDOW(window_), steps_[index].primary);
+    cancel_ = steps_[index].cancel;
   }
   std::vector<Step> steps_;
   std::size_t current_ = 0;
   GtkWidget* window_ = nullptr;
+  GtkWidget* cancel_ = nullptr;
 
  private:
   struct Bound {
@@ -165,6 +178,10 @@ void on_click(GtkButton*, gpointer data) {
       action_quit(g_surface);
       break;
   }
+}
+
+gboolean on_key(GtkEventControllerKey*, guint keyval, guint, GdkModifierType, gpointer) {
+  return keyval == GDK_KEY_Escape && g_surface.press_cancel() ? TRUE : FALSE;
 }
 
 void on_language_selected(GObject* object, GParamSpec*, gpointer) {
@@ -245,6 +262,7 @@ void activate(GtkApplication* app, gpointer) {
 
   GtkWidget* w_button_7 = gtk_button_new_with_label("");
   g_surface.bind_text(Kind::Button, w_button_7, Text::msg(7));
+  gtk_widget_add_css_class(w_button_7, "suggested-action");
   g_surface.bind_download_button(w_button_7);
   g_signal_connect(w_button_7, "clicked", G_CALLBACK(on_click), GINT_TO_POINTER(0));
   gtk_widget_set_halign(w_button_7, GTK_ALIGN_FILL);
@@ -256,7 +274,7 @@ void activate(GtkApplication* app, gpointer) {
   gtk_widget_set_halign(w_button_8, GTK_ALIGN_FILL);
   gtk_box_append(GTK_BOX(w_view_6), w_button_8);
 
-  g_surface.add_step(w_language, 420, 180);
+  g_surface.add_step(w_language, 420, 180, w_button_7, w_button_8);
 
   GtkWidget* w_hello = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_widget_set_halign(w_hello, GTK_ALIGN_FILL);
@@ -287,6 +305,7 @@ void activate(GtkApplication* app, gpointer) {
 
   GtkWidget* w_button_14 = gtk_button_new_with_label("");
   g_surface.bind_text(Kind::Button, w_button_14, Text::msg(6));
+  gtk_widget_add_css_class(w_button_14, "suggested-action");
   g_signal_connect(w_button_14, "clicked", G_CALLBACK(on_click), GINT_TO_POINTER(4));
   gtk_widget_set_halign(w_button_14, GTK_ALIGN_FILL);
   gtk_box_append(GTK_BOX(w_view_12), w_button_14);
@@ -297,10 +316,13 @@ void activate(GtkApplication* app, gpointer) {
   gtk_widget_set_halign(w_button_15, GTK_ALIGN_FILL);
   gtk_box_append(GTK_BOX(w_view_12), w_button_15);
 
-  g_surface.add_step(w_hello, 600, 440);
+  g_surface.add_step(w_hello, 600, 440, w_button_14, w_button_15);
 
   g_surface.refresh_all();
   g_surface.start_steps(window);
+  GtkEventController* keys = gtk_event_controller_key_new();
+  g_signal_connect(keys, "key-pressed", G_CALLBACK(on_key), nullptr);
+  gtk_widget_add_controller(window, keys);
   gtk_window_present(GTK_WINDOW(window));
 }
 

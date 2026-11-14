@@ -99,6 +99,7 @@
                       13
                     ],
                     "disabledDuringDownload": true,
+                    "primary": true,
                     "on": {
                       "click": "confirm"
                     },
@@ -117,6 +118,7 @@
                       25,
                       13
                     ],
+                    "cancel": true,
                     "on": {
                       "click": "quit"
                     },
@@ -232,6 +234,7 @@
                       33,
                       13
                     ],
+                    "primary": true,
                     "on": {
                       "click": "handler_4"
                     },
@@ -250,6 +253,7 @@
                       34,
                       13
                     ],
+                    "cancel": true,
                     "on": {
                       "click": "quit"
                     },

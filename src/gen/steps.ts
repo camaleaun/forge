@@ -27,27 +27,50 @@ export function navigationUsed(ir: Ir): Navigation {
   return used;
 }
 
-// The members a Surface class gets when the app has <steps> or a quit effect: the pages (one view per step, with
-// the window size of the screen), the navigation the handlers use, and the window resize on every switch.
+function hasButton(ir: Ir, flag: 'primary' | 'cancel'): boolean {
+  const visit = (node: Node): boolean => node[flag] === true || node.children.some(visit);
+  return visit(ir.root);
+}
+
+// The members a Surface class gets when the app has <steps>, a quit effect or a cancel button: the pages (one view
+// per step, with the window size of the screen and its primary and cancel buttons), the navigation the handlers use,
+// and on every switch the window resize and the keys (Enter and Escape belong to the buttons of the visible screen).
 export function stepMembers(ir: Ir, flavor: 'macos' | 'linux'): string {
   const used = navigationUsed(ir);
   const hasSteps = stepIds(ir).length > 0;
-  const view = flavor === 'macos' ? 'NSView*' : 'GtkWidget*';
-  const window = flavor === 'macos' ? 'NSWindow*' : 'GtkWidget*';
-  const quit = flavor === 'macos' ? '[NSApp terminate:nil];' : 'g_application_quit(g_application_get_default());';
-  const hide = flavor === 'macos' ? '[steps_[i].view setHidden:i != index];' : 'gtk_widget_set_visible(steps_[i].view, i == index);';
-  const resize =
-    flavor === 'macos'
-      ? '[window_ setContentSize:NSMakeSize(steps_[index].width, steps_[index].height)];'
-      : `gtk_window_set_default_size(GTK_WINDOW(window_), steps_[index].width, steps_[index].height);
-    gtk_widget_set_size_request(gtk_window_get_child(GTK_WINDOW(window_)), steps_[index].width, steps_[index].height);`;
+  const mac = flavor === 'macos';
+  const hasCancel = hasButton(ir, 'cancel');
+  const view = mac ? 'NSView*' : 'GtkWidget*';
+  const button = mac ? 'NSButton*' : 'GtkWidget*';
+  const window = mac ? 'NSWindow*' : 'GtkWidget*';
+  const quit = mac ? '[NSApp terminate:nil];' : 'g_application_quit(g_application_get_default());';
+  const hide = mac ? '[steps_[i].view setHidden:i != index];' : 'gtk_widget_set_visible(steps_[i].view, i == index);';
+  const keys = mac
+    ? `[steps_[i].primary setKeyEquivalent:i == index ? @"\\r" : @""];
+      [steps_[i].cancel setKeyEquivalent:i == index ? @"\\033" : @""];`
+    : '';
+  const resize = mac
+    ? '[window_ setContentSize:NSMakeSize(steps_[index].width, steps_[index].height)];'
+    : `gtk_window_set_default_size(GTK_WINDOW(window_), steps_[index].width, steps_[index].height);
+    gtk_widget_set_size_request(gtk_window_get_child(GTK_WINDOW(window_)), steps_[index].width, steps_[index].height);
+    gtk_window_set_default_widget(GTK_WINDOW(window_), steps_[index].primary);
+    cancel_ = steps_[index].cancel;`;
   const members: string[] = [];
   if (hasSteps) {
     members.push(`  // <steps>: one page per screen; showing one hides the others and sizes the window to it.
-  void add_step(${view} page, int width, int height) { steps_.push_back({page, width, height}); }
+  void add_step(${view} page, int width, int height, ${button} primary, ${button} cancel) { steps_.push_back({page, width, height, primary, cancel}); }
   void start_steps(${window} window) {
     window_ = window;
     show(0);
+  }`);
+  }
+  if (!mac && hasCancel) {
+    members.push(`  // Escape: presses the cancel button of the visible screen (if it can be pressed).
+  void set_cancel(GtkWidget* button) { cancel_ = button; }
+  bool press_cancel() {
+    if (!cancel_ || !gtk_widget_is_sensitive(cancel_)) return false;
+    gtk_widget_activate(cancel_);
+    return true;
   }`);
   }
   if (used.next) members.push('  void go_next() override { show(current_ + 1 < steps_.size() ? current_ + 1 : current_); }');
@@ -55,26 +78,29 @@ export function stepMembers(ir: Ir, flavor: 'macos' | 'linux'): string {
   if (used.step) members.push('  void go_step(StepId id) override { show(static_cast<std::size_t>(id)); }');
   if (used.quit) members.push(`  void quit() override { ${quit} }`);
   if (members.length === 0) return '';
-  const fields = hasSteps
-    ? `
- private:
-  struct Step {
+  const fields: string[] = [];
+  if (hasSteps) {
+    fields.push(`  struct Step {
     ${view} view;
     int width;
     int height;
+    ${button} primary;
+    ${button} cancel;
   };
   void show(std::size_t index) {
     if (index >= steps_.size()) return;
     current_ = index;
-    for (std::size_t i = 0; i < steps_.size(); ++i) ${hide}
+    for (std::size_t i = 0; i < steps_.size(); ++i) {
+      ${hide}${keys ? `\n      ${keys}` : ''}
+    }
     ${resize}
   }
   std::vector<Step> steps_;
   std::size_t current_ = 0;
-  ${window} window_ = nullptr;
-`
-    : '';
-  return `\n${members.join('\n')}\n${fields}`;
+  ${window} window_ = nullptr;`);
+  }
+  if (!mac && hasCancel) fields.push('  GtkWidget* cancel_ = nullptr;');
+  return `\n${members.join('\n')}\n${fields.length > 0 ? ` private:\n${fields.join('\n')}\n` : ''}`;
 }
 
 function hasWaitingButton(ir: Ir): boolean {
