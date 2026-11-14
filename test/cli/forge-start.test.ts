@@ -37,8 +37,24 @@ async function visit(url: string): Promise<Response> {
 const TOKEN_URL = /http:\/\/127\.0\.0\.1:(\d+)\/\?t=([A-Za-z0-9_-]{22})/;
 
 describe('given the hello app', () => {
-  it('when running "forge start" with no flags, then it prints a local URL with a token that serves the page, and refuses requests without the token', async () => {
-    const run = startForge(['--project', fixture, '--port', '0'], TOKEN_URL);
+  it('when running "forge start" with no flags, then the server is local only: a plain URL with no token that serves the page, and no network warning', async () => {
+    const run = startForge(['--project', fixture, '--port', '0'], /http:\/\/127\.0\.0\.1:(\d+)\//);
+    try {
+      const match = await run.found;
+      assert.ok(!match[0].includes('?t='));
+      const response = await fetch(match[0]);
+      assert.equal(response.status, 200);
+      assert.ok((await response.text()).includes('Press the button'));
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      assert.ok(!/local network/i.test(run.output()));
+      assert.ok(!run.output().includes('?t='));
+    } finally {
+      assert.equal(await run.stop(), 0);
+    }
+  });
+
+  it('when running "forge start --token", then it prints a local URL with a token that serves the page, and refuses requests without the token', async () => {
+    const run = startForge(['--project', fixture, '--port', '0', '--token'], TOKEN_URL);
     try {
       const match = await run.found;
       const response = await visit(match[0]);
@@ -52,8 +68,8 @@ describe('given the hello app', () => {
     }
   });
 
-  it('when running "forge start" with no flags, then it warns that the server is reachable on the local network and prints a tokenized network URL (or says there is no network)', async () => {
-    const run = startForge(['--project', fixture, '--port', '0'], /Press Ctrl\+C to stop\./);
+  it('when running "forge start --token", then it warns that the server is reachable on the local network and prints a tokenized network URL (or says there is no network)', async () => {
+    const run = startForge(['--project', fixture, '--port', '0', '--token'], /Press Ctrl\+C to stop\./);
     try {
       await run.found;
       assert.match(run.output(), /local network/i);
@@ -63,8 +79,8 @@ describe('given the hello app', () => {
     }
   });
 
-  it('when running "forge start" with no flags, then the QR code is not printed on its own (it is shown with the q key)', async () => {
-    const run = startForge(['--project', fixture, '--port', '0'], /Press Ctrl\+C to stop\./);
+  it('when running "forge start --token", then the QR code is not printed on its own (it is shown with the q key)', async () => {
+    const run = startForge(['--project', fixture, '--port', '0', '--token'], /Press Ctrl\+C to stop\./);
     try {
       await run.found;
       assert.ok(!run.output().includes('█'), 'the QR code must not appear until q is pressed');
@@ -73,7 +89,7 @@ describe('given the hello app', () => {
     }
   });
 
-  it('when running "forge start --qr" and a network exists, then the QR code is printed at startup', async () => {
+  it('when running "forge start --qr" (it implies --token) and a network exists, then the QR code is printed at startup', async () => {
     const run = startForge(['--project', fixture, '--port', '0', '--qr'], /Press Ctrl\+C to stop\./);
     try {
       await run.found;
@@ -84,7 +100,7 @@ describe('given the hello app', () => {
     }
   });
 
-  it('when running "forge start --local", then the server is local only: no token, no network warning', async () => {
+  it('when running "forge start --local" (the old spelling of the default), then it is still accepted: local only, no token, no network warning', async () => {
     const run = startForge(['--project', fixture, '--port', '0', '--local'], /http:\/\/127\.0\.0\.1:(\d+)\//);
     try {
       const match = await run.found;
@@ -100,7 +116,7 @@ describe('given the hello app', () => {
 
 describe('given a project that does not build', () => {
   it('when running "forge start", then the server still starts and the page shows the error', async () => {
-    const run = startForge(['--project', join(root, 'test/fixtures'), '--port', '0'], TOKEN_URL);
+    const run = startForge(['--project', join(root, 'test/fixtures'), '--port', '0'], /http:\/\/127\.0\.0\.1:(\d+)\//);
     try {
       const match = await run.found;
       const html = await (await visit(match[0])).text();

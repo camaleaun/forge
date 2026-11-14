@@ -30,7 +30,7 @@ Windows, web and mobile come later. Elements: `window`, `view`, `text`, `button`
 ## Commands
 ```sh
 forge build [--project <dir>] [--target macos|linux] --out <dir>   # generate C++/Objective-C++ + CMake
-forge start [--project <dir>] [--port 5170] [--local] [--qr] # live preview; reachable from your phone (token; q shows a QR), --local keeps it on this machine
+forge start [--project <dir>] [--port 5170] [--token] [--qr] # live preview on this machine; --token also shares it on your network (phone; q shows a QR)
 forge info  [--project <dir>] --field name|version
 forge manifest --dir <dir> --tag <tag> --repo <owner/repo>  # latest.json for the auto-updater
 ```

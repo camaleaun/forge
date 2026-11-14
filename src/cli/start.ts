@@ -10,12 +10,14 @@ import { unionMessages } from '../project/messages.ts';
 import { handleKey } from './keys.ts';
 import { openCommand } from './open.ts';
 
-export type StartOptions = { project: string; port: number; local: boolean; qr: boolean };
+// token = share the preview on the local network behind a secret token (needed to open it from a phone); without it the server listens on this machine only.
+export type StartOptions = { project: string; port: number; token: boolean; qr: boolean };
 
 const KEYS_HINT = 'Keys: o open in browser | q show the QR code | h help | Ctrl+C quit';
 
 // Starts the dev server and keeps the process alive until SIGINT/SIGTERM.
-// By default the preview is reachable from the local network (token required) so a phone can open it.
+// By default the preview listens on this machine only (127.0.0.1, no token). With --token it is also reachable
+// from the local network, protected by a secret token, so a phone can open it.
 export async function start(options: StartOptions): Promise<void> {
   const projectDir = resolve(options.project);
   // Signal handlers first: once anything is printed, Ctrl+C / SIGTERM must always exit cleanly with code 0.
@@ -30,7 +32,7 @@ export async function start(options: StartOptions): Promise<void> {
   const server = await createDevServer({
     projectDir,
     port: options.port,
-    lan: !options.local,
+    lan: options.token,
     load: async () => {
       const built = await buildProjectIr(projectDir, 'web');
       if (!built.ir || !built.pkg) return { errors: built.errors };
@@ -45,11 +47,12 @@ export async function start(options: StartOptions): Promise<void> {
   const phoneUrl = server.lanUrls[0] ?? localUrl;
 
   console.log(`forge start: ${localUrl}`);
-  if (!options.local) {
+  if (options.token) {
     console.log(server.lanUrls.length > 0
       ? formatLanBanner(server.lanUrls, { qr: options.qr })
       : 'The server is reachable on the local network, but no network interface was found: it is only reachable from this machine (no network).');
   }
+  if (!options.token) console.log('To open it on your phone: forge start --token');
   console.log('Press Ctrl+C to stop.');
 
   if (process.stdin.isTTY) {
@@ -65,6 +68,10 @@ export async function start(options: StartOptions): Promise<void> {
           console.log(`Opening ${localUrl}`);
         },
         showQr: () => {
+          if (!options.token) {
+            console.log('The QR code is for opening the preview on your phone: restart with forge start --token (it shares the preview on your local network behind a secret token).');
+            return;
+          }
           try {
             console.log(`${qrToTerminal(qrMatrix(phoneUrl))}\n${phoneUrl}`);
           } catch {
