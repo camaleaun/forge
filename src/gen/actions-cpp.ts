@@ -1,15 +1,17 @@
 import type { Effect, Ir } from '../ir/types.ts';
 import { textOf } from '../ir/text.ts';
 import { cppString } from './escape.ts';
+import { textExpr } from './text-cpp.ts';
 
-function emitEffect(effect: Effect): string {
-  return `  out.set_state(StateId::${effect.state}, ${cppString(textOf(effect.value))});`;
+function emitEffect(effect: Effect, ir: Ir, i18n: boolean): string {
+  const value = i18n ? textExpr(ir, effect.value) : cppString(textOf(effect.value));
+  return `  out.set_state(StateId::${effect.state}, ${value});`;
 }
 
-export function generateActionsCpp(ir: Ir): string {
+export function generateActionsCpp(ir: Ir, i18n = false): string {
   const functions = ir.handlers
     .map((handler) => {
-      const body = handler.effects.length > 0 ? handler.effects.map(emitEffect) : ['  (void)out;'];
+      const body = handler.effects.length > 0 ? handler.effects.map((effect) => emitEffect(effect, ir, i18n)) : ['  (void)out;'];
       return `void action_${handler.id}(Surface& out) {\n${body.join('\n')}\n}\n`;
     })
     .join('\n');

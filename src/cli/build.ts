@@ -1,7 +1,8 @@
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { RUNTIME_DIR, RUNTIME_FILES, generateProject, writeProjectFiles } from '../gen/index.ts';
+import { RUNTIME_DIR, generateProject, runtimeFilesFor, writeProjectFiles } from '../gen/index.ts';
 import type { ProjectFiles } from '../gen/index.ts';
+import type { I18nGenOptions } from '../gen/i18n-options.ts';
 import { loadProjectI18n } from '../i18n/project.ts';
 import type { Ir } from '../ir/types.ts';
 import { buildProjectIr } from '../project/build.ts';
@@ -32,22 +33,23 @@ export async function build(options: BuildOptions): Promise<number> {
   }
   for (const warning of i18n.warnings) console.error(`warning: ${warning}`);
 
+  const { baseUrl, options: flags, packs } = i18n;
+  const i18nOptions: I18nGenOptions | undefined = packs.length === 0 ? undefined : {
+    appId: `local.forge.${pkg.name}`,
+    packs: packs.map(({ tag, file, sha256, size }) => ({ tag, file, sha256, size })),
+    baseUrl,
+    ...flags,
+  };
   let files: ProjectFiles;
   try {
-    const { baseUrl, options: flags, packs } = i18n;
-    files = generateProject(ir, options.target, {
-      iconSvg,
-      ...(packs.length === 0 ? {} : {
-        i18n: { appId: `local.forge.${pkg.name}`, packs: packs.map(({ tag, file, sha256, size }) => ({ tag, file, sha256, size })), baseUrl, ...flags },
-      }),
-    });
+    files = generateProject(ir, options.target, { iconSvg, ...(i18nOptions ? { i18n: i18nOptions } : {}) });
   } catch (error) {
     console.error(`error: ${(error as Error).message}`);
     return 1;
   }
   mkdirSync(options.out, { recursive: true });
   writeProjectFiles(files, options.out);
-  for (const name of RUNTIME_FILES) copyFileSync(join(RUNTIME_DIR, name), join(options.out, name));
+  for (const name of runtimeFilesFor(i18nOptions)) copyFileSync(join(RUNTIME_DIR, name), join(options.out, name));
   if (i18n.packs.length > 0) {
     mkdirSync(join(options.out, 'lang'), { recursive: true });
     for (const pack of i18n.packs) writeFileSync(join(options.out, 'lang', pack.file), pack.text);

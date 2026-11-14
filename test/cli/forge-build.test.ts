@@ -168,6 +168,17 @@ describe('given an app with languages/pt-BR.lang', () => {
     assert.ok(written.includes('ui_macos.mm'));
   });
 
+  it('when running forge build, then the i18n runtime files are copied next to the generated sources', () => {
+    const { result, written } = buildWithI18n({ 'pt-BR.lang': PT_ALL }, []);
+    assert.equal(result.status, 0, result.stderr);
+    for (const name of ['i18n.cpp', 'i18n.hpp', 'i18n_loader.hpp', 'i18n_macos.mm', 'messages.cpp']) assert.ok(written.includes(name), name);
+  });
+
+  it('when there are no packs, then no i18n runtime files are copied', () => {
+    const { written } = buildWithI18n({ 'template.lang': 'Greet\t\n' }, []);
+    for (const name of ['i18n.cpp', 'i18n.hpp', 'i18n_loader.hpp', 'i18n_macos.mm']) assert.ok(!written.includes(name), name);
+  });
+
   it('when the same project is built twice, then the pack bytes are identical', () => {
     const a = buildWithI18n({ 'pt-BR.lang': PT_ALL }, []).packs;
     const b = buildWithI18n({ 'pt-BR.lang': PT_ALL }, []).packs;

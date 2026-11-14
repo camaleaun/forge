@@ -1,6 +1,7 @@
 import type { Ir } from '../ir/types.ts';
 import { textOf } from '../ir/text.ts';
 import { cppString } from './escape.ts';
+import { textExpr } from './text-cpp.ts';
 
 const BUILTINS = [
   { flag: '--version', description: 'Print the version' },
@@ -18,8 +19,21 @@ function helpLines(ir: Ir): string[] {
   ];
 }
 
-export function generateCliRouter(ir: Ir): string {
-  const help = helpLines(ir).map((line) => `  std::puts(${cppString(line)});`).join('\n');
+// In i18n mode the option descriptions are rendered at run time, in the active language.
+function i18nHelp(ir: Ir): string {
+  const options = [...ir.commands.map((command) => ({ flag: command.flag, text: textExpr(ir, command.description) })), ...BUILTINS.map((b) => ({ flag: b.flag, text: `Text(${cppString(b.description)})` }))];
+  const width = Math.max(...options.map((option) => option.flag.length));
+  return [
+    '  std::puts(' + cppString(`Usage: ${ir.app.name} [option]`) + ');',
+    '  std::puts("");',
+    '  std::puts("Options:");',
+    ...options.map((option) => `  print_option(${cppString(`  ${option.flag.padEnd(width)}  `)}, ${option.text});`),
+  ].join('\n');
+}
+
+export function generateCliRouter(ir: Ir, i18n = false): string {
+  const help = i18n ? i18nHelp(ir) : helpLines(ir).map((line) => `  std::puts(${cppString(line)});`).join('\n');
+  const printOption = i18n ? 'static void print_option(const char* label, const Text& description) {\n  std::printf("%s%s\\n", label, render(description).c_str());\n}\n\n' : '';
   const commands = ir.commands
     .map((command) => `  if (arg == ${cppString(command.flag)}) {\n    action_${command.handler}(out);\n    return 0;\n  }\n`)
     .join('');
@@ -31,7 +45,7 @@ export function generateCliRouter(ir: Ir): string {
 
 namespace forge_app {
 
-static void print_help() {
+${printOption}static void print_help() {
 ${help}
 }
 
