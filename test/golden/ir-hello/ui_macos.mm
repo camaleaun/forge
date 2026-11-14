@@ -77,10 +77,12 @@ int forge_app::run_ui(int argc, char** argv) {
 
     NSWindow* window = [[NSWindow alloc]
         initWithContentRect:NSMakeRect(0, 0, 320, 120)
-                  styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
+                  styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable |
+                             NSWindowStyleMaskResizable)
                     backing:NSBackingStoreBuffered
                       defer:NO];
     [window setTitle:@"Hello, forge"];
+    [window setContentMinSize:NSMakeSize(320, 120)];
     [window center];
     NSView* content = [window contentView];
 

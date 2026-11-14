@@ -140,3 +140,15 @@ describe('given quotes in the window title and in the texts', () => {
     assert.ok(source.includes('@"Quit my\\"app"'));
   });
 });
+
+describe('given a window with a width and a height in the CSS', () => {
+  it('when generating, then the window can be resized, maximized and minimized, and never shrinks below that size', () => {
+    const ir = helloIr();
+    ir.root.style.width = 400;
+    ir.root.style.height = 200;
+    const source = generateMacosUi(ir);
+    assert.ok(source.includes('NSWindowStyleMaskResizable'), 'resizable (this also enables the green maximize button)');
+    assert.ok(source.includes('NSWindowStyleMaskMiniaturizable'));
+    assert.ok(source.includes('[window setContentMinSize:NSMakeSize(400, 200)];'));
+  });
+});

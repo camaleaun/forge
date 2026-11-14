@@ -262,10 +262,12 @@ int forge_app::run_ui(int argc, char** argv) {
 
     NSWindow* window = [[NSWindow alloc]
         initWithContentRect:NSMakeRect(0, 0, ${width}, ${height})
-                  styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
+                  styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable |
+                             NSWindowStyleMaskResizable)
                     backing:NSBackingStoreBuffered
                       defer:NO];
     [window setTitle:${objcString(root.title ?? ir.app.name)}];
+    [window setContentMinSize:NSMakeSize(${width}, ${height})];
     [window center];
     NSView* content = [window contentView];
 
