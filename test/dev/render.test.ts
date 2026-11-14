@@ -202,3 +202,25 @@ describe('given an IR with a <select language /> node', () => {
     assert.match(html, /<select id="forge-lang" data-auto="1"[^>]*><option value="auto">Auto<\/option>/);
   });
 });
+
+describe('given the live view in light and dark mode', () => {
+  it('when the page is rendered, then it follows the system colour scheme (both schemes declared, dark rules for the page and the CLI panel)', () => {
+    const html = renderPage(helloIr());
+    assert.match(html, /<meta name="color-scheme" content="light dark">/);
+    assert.match(html, /color-scheme:light dark/);
+    assert.match(html, /@media \(prefers-color-scheme:\s*dark\)\{[^}]*body\{[^}]*background:#[0-9a-f]{3,6}/i);
+    assert.match(html, /@media \(prefers-color-scheme:\s*dark\)[^]*#forge-cli-out/);
+  });
+
+  it('when the page is rendered, then no text colour is forced on the app content (only the page chrome sets colours)', () => {
+    const html = renderPage(helloIr());
+    assert.ok(!/id="window_0"[^>]*color:/.test(html));
+  });
+
+  it('when the error page is rendered, then it also follows the scheme and the heading colour has a dark variant', () => {
+    const html = renderErrorPage(['App.tsx:1:1: bad']);
+    assert.match(html, /<meta name="color-scheme" content="light dark">/);
+    assert.match(html, /prefers-color-scheme:\s*dark/);
+    assert.ok(!html.includes('style="color:#b00020"'), 'the heading colour must come from the scheme-aware stylesheet');
+  });
+});

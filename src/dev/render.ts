@@ -106,12 +106,16 @@ function renderNode(node: Node, ir: Ir, texts: Texts, languages: string[]): stri
 
 const RELOAD = `try{new EventSource('/events').onmessage=function(e){if(e.data==='reload')location.reload();};}catch(e){}`;
 
-const CSS = `progress[hidden]{display:none}
+// Light and dark follow the system (prefers-color-scheme); the app's own CSS colours are left as authored.
+const CSS = `:root{color-scheme:light dark}
+progress[hidden]{display:none}
 body{margin:0;padding:0;font-family:system-ui,sans-serif;background:#fff;color:#222}
+h1.forge-errors{color:#b00020}
 #forge-tools{padding:16px;font-size:13px}
 #forge-cli{max-width:480px}
 #forge-cli button{margin:0 8px 8px 0}
-#forge-cli-out{white-space:pre-wrap;font-family:ui-monospace,monospace;background:#111;color:#8f8;padding:8px;min-height:1em}`;
+#forge-cli-out{white-space:pre-wrap;font-family:ui-monospace,monospace;background:#111;color:#8f8;padding:8px;min-height:1em}
+@media (prefers-color-scheme: dark){body{background:#1c1c1e;color:#f2f2f7}h1.forge-errors{color:#ff6b81}#forge-cli-out{background:#000;color:#9f9}}`;
 
 const APP_SCRIPT = `(function(){
 ${CLIENT_SOURCE}
@@ -246,7 +250,7 @@ ${RELOAD}
 
 function document_(title: string, body: string, script: string, extra = ''): string {
   return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark">
 <title>${esc(title)}</title><style>${CSS}</style></head>
 <body>${body}${extra}<script>${script}</script></body></html>
 `;
@@ -277,6 +281,6 @@ export function renderPage(ir: Ir, options: { languages?: string[] } = {}): stri
 
 export function renderErrorPage(errors: string[]): string {
   const items = errors.map((e) => `<li><code>${esc(e)}</code></li>`).join('');
-  const body = `<h1 style="color:#b00020">Build errors</h1><ul>${items}</ul>`;
+  const body = `<h1 class="forge-errors">Build errors</h1><ul>${items}</ul>`;
   return document_('forge: errors', body, RELOAD);
 }
