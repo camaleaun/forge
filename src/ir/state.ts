@@ -34,6 +34,28 @@ export class State {
   }
 }
 
+function record(effect: Effect): void {
+  if (recorder === null) throw new Error('navigation (next, back, goTo, quit) can only run inside a handler');
+  recorder.push(effect);
+}
+
+// Ready-made handlers for onClick: go to the next or previous <step>, or quit the app.
+export function next(): void {
+  record({ op: 'go', to: 'next' });
+}
+export function back(): void {
+  record({ op: 'go', to: 'back' });
+}
+export function quit(): void {
+  record({ op: 'quit' });
+}
+
+// A handler that goes to the <step> with this id (checked at build time).
+export function goTo(id: string): () => void {
+  if (typeof id !== 'string' || id === '') throw new Error('goTo() expects a step id, e.g. goTo("hello")');
+  return () => record({ op: 'go', to: { step: id } });
+}
+
 export function state(initial: string | Message): State {
   const created = new State(`s${states.length}`, toTextValue(initial));
   states.push(created);

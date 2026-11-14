@@ -22,7 +22,7 @@ export type BuildInput = {
 
 type Handler = () => void;
 
-const KINDS = ['window', 'view', 'text', 'button', 'select', 'progress'];
+const KINDS = ['window', 'view', 'steps', 'step', 'text', 'button', 'select', 'progress'];
 
 function isVNode(value: unknown): value is VNode {
   return typeof value === 'object' && value !== null && 'type' in value;
@@ -150,7 +150,7 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
     return (tag === 'only' ? listed : !listed) ? children : [];
   };
 
-  const toNode = (vnode: VNode, isRoot: boolean): Node => {
+  const toNode = (vnode: VNode, isRoot: boolean, parent?: Node['kind']): Node => {
     const kind = vnode.type as Node['kind'];
     const props = vnode.props ?? {};
     const loc = (props['forge:loc'] as Loc | undefined) ?? [0, 0];
@@ -169,6 +169,26 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
     }
     if (kind === 'window' && !isRoot) at(loc, '<window> can only be the root element');
     if (typeof props.id === 'string') checkId(props.id, loc);
+    if (kind === 'steps' && parent !== 'window') at(loc, '<steps> must be a direct child of the root <window>');
+    if (kind === 'step') {
+      if (parent !== 'steps') at(loc, '<step> must be a direct child of <steps>');
+      if (typeof props.id !== 'string') at(loc, '<step> needs an id, e.g. <step id="welcome">');
+      const size: NonNullable<Node['step']> = {};
+      for (const side of ['width', 'height'] as const) {
+        const value = props[side];
+        if (value === undefined) continue;
+        if (typeof value === 'number' && Number.isFinite(value) && value > 0) size[side] = value;
+        else at(loc, `<step> ${side} must be a number greater than 0, e.g. ${side}={${side === 'width' ? 420 : 180}}`);
+      }
+      node.step = size;
+      if (!vnode.children.some(isVNode)) at(loc, '<step> needs at least one child element');
+    }
+    if (props.waitsForDownload !== undefined) {
+      if (kind !== 'button') at(loc, 'waitsForDownload is only supported on <button>');
+      else if (props.waitsForDownload !== true) at(loc, 'waitsForDownload is a bare attribute');
+      else if (!input.translateLiterals) at(loc, '<button waitsForDownload> needs an languages/ folder with at least one language file');
+      else node.disabledDuringDownload = true;
+    }
     if (typeof props.title === 'string') node.title = literalOrMessage(props.title);
     else if (props.title instanceof Message) node.title = toTextValue(props.title);
     if (props.onClick !== undefined) {
@@ -197,7 +217,20 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
         node.content = literalOrMessage(vnode.children.map(String).join(''));
       }
     } else {
-      node.children = vnode.children.filter(isVNode).map((child) => toNode(child, false));
+      if (kind === 'steps') {
+        if (vnode.children.length === 0) at(loc, '<steps> needs at least one <step>');
+        else if (vnode.children.some((child) => !isVNode(child) || child.type !== 'step')) {
+          const stray = vnode.children.find((child) => isVNode(child) && child.type !== 'step');
+          at((stray && ((stray as VNode).props?.['forge:loc'] as Loc | undefined)) || loc, '<steps> can only contain <step> elements');
+        }
+      }
+      node.children = vnode.children.filter(isVNode).map((child) => toNode(child, false, kind));
+      if (kind === 'window' && node.children.some((child) => child.kind === 'steps')) {
+        const stepsNodes = node.children.filter((child) => child.kind === 'steps');
+        if (stepsNodes.length > 1) at(stepsNodes[1].loc, 'a <window> can have only one <steps>');
+        const other = node.children.find((child) => child.kind !== 'steps');
+        if (other) at(other.loc, 'a <window> with <steps> cannot have other content: put it inside the <step>s');
+      }
     }
     return node;
   };
@@ -210,12 +243,35 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
   const root = toNode(roots[0], true);
   if (root.kind !== 'window') at(root.loc, 'the root element must be <window>');
 
+  const commandNavigates = (id: string) => handlers.find((handler) => handler.id === id)?.effects.some((effect) => effect.op === 'go');
   const commands: Ir['commands'] = [];
   for (const [flag, command] of Object.entries(input.commands ?? {})) {
     if (!flag.startsWith('--')) errors.push(`${file}: command "${flag}" must start with "--"`);
     else if (RESERVED_FLAGS.includes(flag) || flag.startsWith('--forge-')) errors.push(`${file}: command "${flag}" is reserved`);
-    else commands.push({ flag, description: toTextValue(command.description), handler: handlerFor(command.run) });
+    else {
+      const handler = handlerFor(command.run);
+      if (commandNavigates(handler)) errors.push(`${file}: command "${flag}" cannot navigate between steps`);
+      commands.push({ flag, description: toTextValue(command.description), handler });
+    }
   }
+
+  const stepIds = new Set<string>();
+  const collectSteps = (node: Node) => {
+    if (node.kind === 'step') stepIds.add(node.id);
+    node.children.forEach(collectSteps);
+  };
+  collectSteps(root);
+  const hasSteps = root.children.some((child) => child.kind === 'steps');
+  const checkNavigation = (node: Node) => {
+    const effects = node.on?.click ? (handlers.find((handler) => handler.id === node.on!.click)?.effects ?? []) : [];
+    for (const effect of effects) {
+      if (effect.op !== 'go') continue;
+      if (!hasSteps) at(node.loc, 'navigation (next, back, goTo) needs a <steps> in the <window>');
+      else if (typeof effect.to === 'object' && !stepIds.has(effect.to.step)) at(node.loc, `goTo("${effect.to.step}"): there is no <step id="${effect.to.step}">`);
+    }
+    node.children.forEach(checkNavigation);
+  };
+  checkNavigation(root);
 
   const ir: Ir = {
     irVersion: 2,

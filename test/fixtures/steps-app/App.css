@@ -1,0 +1,4 @@
+window   { width: 420px; height: 180px; }
+step     { padding: 16px; gap: 12px; }
+.message { font-size: 15px; }
+.buttons { flex-direction: row; gap: 8px; justify-content: end; }

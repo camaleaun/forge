@@ -10,7 +10,7 @@ order: 3
 
 ## Selectors
 
-- Element selectors: `window`, `view`, `text`, `button`, `select`, `progress`.
+- Element selectors: `window`, `view`, `steps`, `step`, `text`, `button`, `select`, `progress`. `steps` has no style of its own; `step` takes the same layout properties as `view`, except `width` and `height` (they come from the `<step>` attributes).
 - Class selectors: `.message`.
 - Id selectors: `#title`.
 - Comma-separated lists: `text, button`.
@@ -26,16 +26,16 @@ Specificity is `#id` over `.class` over element; for equal specificity the later
 
 | Property | Values | Applies to |
 |---|---|---|
-| `flex-direction` | `row`, `column` | window, view |
-| `gap` | px | window, view |
-| `padding` | 1 to 4 px values (CSS order: top right bottom left) | window, view |
-| `align-items` | `start`, `center`, `end`, `stretch` | window, view |
-| `justify-content` | `start`, `center`, `end`, `space-between` | window, view |
+| `flex-direction` | `row`, `column` | window, view, step |
+| `gap` | px | window, view, step |
+| `padding` | 1 to 4 px values (CSS order: top right bottom left) | window, view, step |
+| `align-items` | `start`, `center`, `end`, `stretch` | window, view, step |
+| `justify-content` | `start`, `center`, `end`, `space-between` | window, view, step |
 | `width` | px or `auto` | window, view, text, button, select, progress |
 | `height` | px or `auto` | window, view, text, button, select, progress |
 | `flex` | a number (grow factor) | window, view, text, button, select, progress |
-| `background` | color | window, view |
-| `border-radius` | px | window, view |
+| `background` | color | window, view, step |
+| `border-radius` | px | window, view, step |
 | `color` | color | text, progress (on a progress bar: the fill; macOS keeps the system accent colour) |
 | `font-size` | px | text, button |
 | `font-weight` | `normal`, `bold`, `400`, `700` | text, button |

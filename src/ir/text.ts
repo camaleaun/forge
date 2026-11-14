@@ -29,7 +29,7 @@ function textValuesOf(ir: Ir): TextValue[] {
   };
   visit(ir.root);
   for (const state of ir.states) values.push(state.initial);
-  for (const handler of ir.handlers) for (const effect of handler.effects) values.push(effect.value);
+  for (const handler of ir.handlers) for (const effect of handler.effects) if (effect.op === 'set') values.push(effect.value);
   for (const command of ir.commands) values.push(command.description);
   return values;
 }
@@ -80,7 +80,7 @@ export function englishIr(ir: Ir): Ir {
     ...ir,
     root: node(ir.root),
     states: ir.states.map((s) => ({ id: s.id, initial: literal(s.initial) })),
-    handlers: ir.handlers.map((h) => ({ id: h.id, effects: h.effects.map((e) => ({ ...e, value: literal(e.value) })) })),
+    handlers: ir.handlers.map((h) => ({ id: h.id, effects: h.effects.map((e) => (e.op === 'set' ? { ...e, value: literal(e.value) } : e)) })),
     commands: ir.commands.map((c) => ({ ...c, description: literal(c.description) })),
   };
 }

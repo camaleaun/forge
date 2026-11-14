@@ -25,7 +25,7 @@ export default function App() {
 ```
 
 An app is `package.json` (name, version) + `App.tsx` + `App.css`. v1 targets macOS (plus a CLI in the same binary); Linux (GTK 4, release candidate) is available with `--target linux`;
-Windows, web and mobile come later. Elements: `window`, `view`, `text`, `button`, `select language`, `progress` (preview only for now). Per-target code: `<only macos linux>...</only>` and `<except web>...</except>` in TSX, `@only macos { ... }` and `@except web { ... }` in CSS (resolved at build time; `forge start` is the `web` target).
+Windows, web and mobile come later. Elements: `window`, `view`, `text`, `button`, `select language`, `progress` (preview only for now), and several screens in one window with `steps` / `step` (`next`, `back`, `goTo`, `quit`; preview only for now). Per-target code: `<only macos linux>...</only>` and `<except web>...</except>` in TSX, `@only macos { ... }` and `@except web { ... }` in CSS (resolved at build time; `forge start` is the `web` target).
 
 ## Commands
 ```sh

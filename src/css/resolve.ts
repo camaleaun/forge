@@ -36,6 +36,10 @@ export function resolveStyle(
     const query = mediaOf(rule);
     const variantStyle: Style = {};
     for (const decl of rule.declarations) {
+      if (kind === 'step' && (decl.property === 'width' || decl.property === 'height')) {
+        fail(decl.loc, `"${decl.property}" cannot be set on <step>: the size of a step comes from its width and height attributes`);
+        continue;
+      }
       if (!PROPERTIES[decl.property].kinds.includes(kind)) {
         fail(decl.loc, `"${decl.property}" is not supported on <${kind}> in v1`);
         continue;

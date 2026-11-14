@@ -59,8 +59,9 @@ The TSX is transformed by a small dependency-free JSX transformer, so there is n
 |---|---|
 | `<window>` | The root. `App()` must return exactly one, and it can only be the root. Takes `title`. |
 | `<view>` | A container (flex layout) for other elements. |
+| `<steps>` / `<step>` | Several screens in one window, see [Screens (steps)](#screens-steps). `<steps>` is the only content of the `<window>`; each `<step id="...">` holds one screen. |
 | `<text>` | A label. Its content is literal text **or** a single state, not a mix. |
-| `<button>` | A button with the same content rule as `<text>`. The only element that accepts `onClick`. |
+| `<button>` | A button with the same content rule as `<text>`. The only element that accepts `onClick`. The bare attribute `waitsForDownload` disables the button while a language pack download is in flight (like `<progress source="language-download">`, it needs a `languages/` folder). |
 | `<progress>` | A progress bar (leaf, no children). `value` (0 to `max`, a number such as `value={0.4}`) with `max` (default `1`), or the bare attribute `indeterminate`, or `source="language-download"`: a bar tied to the language pack download that is only visible while a download runs. `source` needs a `languages/` folder, like `<select language>`. `value` with `indeterminate` is an error. macOS draws an `NSProgressIndicator` and Linux a `GtkProgressBar` (indeterminate bars are animated, or pulsed by a timer on Linux); the preview draws `<progress>`. A `source="language-download"` bar takes no space until a language pack download is in flight, then shows its real progress (bytes received over the pack size) and hides again when the download ends or fails. |
 | `<only>` / `<except>` | Target conditionals, resolved at build time: `<only macos linux>...</only>` keeps its children for those targets, `<except web>...</except>` for every other target. Targets are bare attributes: `macos`, `linux`, `windows`, `web`, `android`, `ios` (the last three are accepted names; nothing is generated for them yet). They work anywhere in the tree, including around `<select language />` and as the child list of `<window>`, but cannot wrap the root `<window>`. Only elements can be inside (no text or state). No targets, an unknown target, or mixing `only` and `except` is an error with `App.tsx:line:column`. `forge start` is the `web` target; a build that names no target is treated as `web`. |
 
@@ -74,9 +75,43 @@ Translatable phrases (`__('...')`) inside `<only>`/`<except>` count for the lang
 
 Handlers (`onClick` functions and command `run` functions) are **executed once at build time** and the effects they perform are recorded. The generated program replays those effects; it carries no JavaScript. That has consequences:
 
-- Handlers can only do what forge can record: today, calling `set` on a state with a string value.
+- Handlers can only do what forge can record: today, calling `set` on a state with a string value, and the navigation of [steps](#screens-steps) (`next`, `back`, `goTo`, `quit`).
 - Reading a state's value is an error, and so are async handlers, exceptions and non-string values.
 - A handler cannot depend on runtime data, such as the current time or user input.
+
+## Screens (steps)
+
+A window can hold several screens, like an installer or a dialog flow. Put one `<steps>` directly inside the root `<window>` (it is the only content of the window) and one `<step>` per screen. Buttons move between the screens with `next`, `back`, `goTo('id')` and `quit`, imported from `forge`:
+
+```tsx
+import { next, back, quit, goTo } from 'forge';
+
+<window title="Hello, forge">
+  <steps>
+    <step id="language" width={420} height={180}>
+      <select language />
+      <progress source="language-download" />
+      <button waitsForDownload onClick={next}>OK</button>
+      <button onClick={quit}>Cancel</button>
+    </step>
+    <step id="hello" width={600} height={440}>
+      <text>Hello!</text>
+      <button onClick={back}>Back</button>
+      <button onClick={goTo('language')}>Language</button>
+      <button onClick={quit}>Close</button>
+    </step>
+  </steps>
+</window>
+```
+
+- The first `<step>` is shown first. Every `<step>` needs a unique `id` and at least one child element; `width` and `height` are optional numbers in px: the window size of that screen on native targets. A step without them keeps the window size from `App.css`.
+- Style a screen with the `step` selector in CSS (same layout properties as `view`, except `width` and `height`, which come from the attributes).
+- `next` and `back` stop at the last and first screen. `goTo('id')` names a step: an unknown id is a build error at the button. `quit` closes the app (in the preview it returns to the first step and shows a notice).
+- A handler can combine them with state: `function confirm() { message.set('Done'); next(); }` runs the effects in order.
+- `next`, `back` and `goTo` need a `<steps>` in the window; `quit` does not. They cannot be used in a CLI command.
+- The preview shows only the current step and ignores the step sizes (it fills the page). The macOS and Linux generators do not support `<steps>` yet and stop with a clear error.
+
+Errors (with `App.tsx:line:column`): `<steps>` outside the window, a child of `<steps>` that is not a `<step>`, a step without `id`, duplicate ids, a size that is not a positive number, an empty step, and a `<step>` outside `<steps>`.
 
 ## Commands (the CLI in the binary)
 

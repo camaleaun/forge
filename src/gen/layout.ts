@@ -123,6 +123,12 @@ export function effective<K extends keyof Changes>(
   return expr;
 }
 
+// The native generators do not lay out <steps> yet; they stop with a clear error instead of generating a wrong window.
+export function assertNoSteps(root: Node, target: string): void {
+  const found = (node: Node): boolean => node.kind === 'steps' || node.children.some(found);
+  if (found(root)) throw new Error(`steps are not supported by the ${target} generator yet`);
+}
+
 // English first, then the endonym of every pack (no "Auto": the dropdown shows the language in use).
 export function languageChoices(i18n: I18nGenOptions | undefined): [string, string][] {
   return [['en', 'English'], ...(i18n?.packs ?? []).map((pack): [string, string] => [pack.tag, languageName(pack.tag)])];
@@ -130,7 +136,7 @@ export function languageChoices(i18n: I18nGenOptions | undefined): [string, stri
 
 function build(node: Node, parent: LayoutNode | undefined, languages: [string, string][] | undefined): LayoutNode {
   const { style } = node;
-  const kind = node.kind === 'window' || node.kind === 'view' ? 'box' : node.kind;
+  const kind = node.kind === 'window' || node.kind === 'view' || node.kind === 'steps' || node.kind === 'step' ? 'box' : node.kind;
   const align = ALIGN.find((value) => value === style.alignItems) ?? 'stretch';
   const result: LayoutNode = {
     id: node.id,

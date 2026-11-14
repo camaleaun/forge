@@ -44,7 +44,7 @@ describe('given an app whose structure is invalid', () => {
   it('when an element is unknown, then it reports the element and the supported ones', () => {
     assert.deepEqual(
       errorsOf(h('window', { 'forge:loc': [1, 1] }, h('div', { 'forge:loc': [3, 7] }))),
-      ['App.tsx:3:7: unknown element <div> (expected window | view | text | button | select | progress)'],
+      ['App.tsx:3:7: unknown element <div> (expected window | view | steps | step | text | button | select | progress)'],
     );
   });
 

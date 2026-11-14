@@ -1,0 +1,389 @@
+{
+  "irVersion": 2,
+  "app": {
+    "name": "steps-demo",
+    "version": "0.1.0"
+  },
+  "root": {
+    "kind": "window",
+    "id": "window_0",
+    "classes": [],
+    "style": {
+      "width": 420,
+      "height": 180
+    },
+    "children": [
+      {
+        "kind": "steps",
+        "id": "steps_1",
+        "classes": [],
+        "style": {},
+        "children": [
+          {
+            "kind": "step",
+            "id": "language",
+            "classes": [],
+            "style": {
+              "padding": [
+                16,
+                16,
+                16,
+                16
+              ],
+              "gap": 12
+            },
+            "children": [
+              {
+                "kind": "text",
+                "id": "text_3",
+                "classes": [],
+                "style": {},
+                "children": [],
+                "loc": [
+                  20,
+                  11
+                ],
+                "content": {
+                  "kind": "message",
+                  "text": "Choose your language"
+                }
+              },
+              {
+                "kind": "select",
+                "id": "select_4",
+                "classes": [],
+                "style": {},
+                "children": [],
+                "loc": [
+                  21,
+                  11
+                ],
+                "select": {
+                  "language": true
+                }
+              },
+              {
+                "kind": "progress",
+                "id": "progress_5",
+                "classes": [],
+                "style": {},
+                "children": [],
+                "loc": [
+                  22,
+                  11
+                ],
+                "progress": {
+                  "source": "language-download"
+                }
+              },
+              {
+                "kind": "view",
+                "id": "view_6",
+                "classes": [
+                  "buttons"
+                ],
+                "style": {
+                  "flexDirection": "row",
+                  "gap": 8,
+                  "justifyContent": "end"
+                },
+                "children": [
+                  {
+                    "kind": "button",
+                    "id": "button_7",
+                    "classes": [],
+                    "style": {},
+                    "children": [],
+                    "loc": [
+                      24,
+                      13
+                    ],
+                    "disabledDuringDownload": true,
+                    "on": {
+                      "click": "confirm"
+                    },
+                    "content": {
+                      "kind": "message",
+                      "text": "OK"
+                    }
+                  },
+                  {
+                    "kind": "button",
+                    "id": "button_8",
+                    "classes": [],
+                    "style": {},
+                    "children": [],
+                    "loc": [
+                      25,
+                      13
+                    ],
+                    "on": {
+                      "click": "quit"
+                    },
+                    "content": {
+                      "kind": "message",
+                      "text": "Cancel"
+                    }
+                  }
+                ],
+                "loc": [
+                  23,
+                  11
+                ]
+              }
+            ],
+            "loc": [
+              19,
+              9
+            ],
+            "step": {
+              "width": 420,
+              "height": 180
+            }
+          },
+          {
+            "kind": "step",
+            "id": "hello",
+            "classes": [],
+            "style": {
+              "padding": [
+                16,
+                16,
+                16,
+                16
+              ],
+              "gap": 12
+            },
+            "children": [
+              {
+                "kind": "text",
+                "id": "text_10",
+                "classes": [
+                  "message"
+                ],
+                "style": {
+                  "fontSize": 15
+                },
+                "children": [],
+                "loc": [
+                  29,
+                  11
+                ],
+                "content": {
+                  "kind": "state",
+                  "state": "s0"
+                }
+              },
+              {
+                "kind": "button",
+                "id": "button_11",
+                "classes": [],
+                "style": {},
+                "children": [],
+                "loc": [
+                  30,
+                  11
+                ],
+                "on": {
+                  "click": "greet"
+                },
+                "content": {
+                  "kind": "message",
+                  "text": "Greet"
+                }
+              },
+              {
+                "kind": "view",
+                "id": "view_12",
+                "classes": [
+                  "buttons"
+                ],
+                "style": {
+                  "flexDirection": "row",
+                  "gap": 8,
+                  "justifyContent": "end"
+                },
+                "children": [
+                  {
+                    "kind": "button",
+                    "id": "button_13",
+                    "classes": [],
+                    "style": {},
+                    "children": [],
+                    "loc": [
+                      32,
+                      13
+                    ],
+                    "on": {
+                      "click": "back"
+                    },
+                    "content": {
+                      "kind": "message",
+                      "text": "Back"
+                    }
+                  },
+                  {
+                    "kind": "button",
+                    "id": "button_14",
+                    "classes": [],
+                    "style": {},
+                    "children": [],
+                    "loc": [
+                      33,
+                      13
+                    ],
+                    "on": {
+                      "click": "handler_4"
+                    },
+                    "content": {
+                      "kind": "message",
+                      "text": "Language"
+                    }
+                  },
+                  {
+                    "kind": "button",
+                    "id": "button_15",
+                    "classes": [],
+                    "style": {},
+                    "children": [],
+                    "loc": [
+                      34,
+                      13
+                    ],
+                    "on": {
+                      "click": "quit"
+                    },
+                    "content": {
+                      "kind": "message",
+                      "text": "Close"
+                    }
+                  }
+                ],
+                "loc": [
+                  31,
+                  11
+                ]
+              }
+            ],
+            "loc": [
+              28,
+              9
+            ],
+            "step": {
+              "width": 600,
+              "height": 440
+            }
+          }
+        ],
+        "loc": [
+          18,
+          7
+        ]
+      }
+    ],
+    "loc": [
+      17,
+      5
+    ],
+    "title": {
+      "kind": "message",
+      "text": "Hello, forge"
+    }
+  },
+  "states": [
+    {
+      "id": "s0",
+      "initial": {
+        "kind": "literal",
+        "value": "Press the button"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "text": "Back"
+    },
+    {
+      "text": "Cancel"
+    },
+    {
+      "text": "Choose your language"
+    },
+    {
+      "text": "Close"
+    },
+    {
+      "text": "Greet"
+    },
+    {
+      "text": "Hello, forge"
+    },
+    {
+      "text": "Language"
+    },
+    {
+      "text": "OK"
+    }
+  ],
+  "handlers": [
+    {
+      "id": "confirm",
+      "effects": [
+        {
+          "op": "set",
+          "state": "s0",
+          "value": {
+            "kind": "literal",
+            "value": "Language chosen"
+          }
+        },
+        {
+          "op": "go",
+          "to": "next"
+        }
+      ]
+    },
+    {
+      "id": "quit",
+      "effects": [
+        {
+          "op": "quit"
+        }
+      ]
+    },
+    {
+      "id": "greet",
+      "effects": [
+        {
+          "op": "set",
+          "state": "s0",
+          "value": {
+            "kind": "literal",
+            "value": "Hello, world!"
+          }
+        }
+      ]
+    },
+    {
+      "id": "back",
+      "effects": [
+        {
+          "op": "go",
+          "to": "back"
+        }
+      ]
+    },
+    {
+      "id": "handler_4",
+      "effects": [
+        {
+          "op": "go",
+          "to": {
+            "step": "language"
+          }
+        }
+      ]
+    }
+  ],
+  "commands": []
+}

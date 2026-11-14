@@ -1,4 +1,4 @@
-export const ELEMENT_KINDS = ['window', 'view', 'text', 'button', 'select', 'progress'] as const;
+export const ELEMENT_KINDS = ['window', 'view', 'steps', 'step', 'text', 'button', 'select', 'progress'] as const;
 export type ElementKind = (typeof ELEMENT_KINDS)[number];
 export type StyleValue = number | string | number[];
 
@@ -57,7 +57,7 @@ const color = {
   parse: parseColor,
 };
 
-const BOX: ElementKind[] = ['window', 'view'];
+const BOX: ElementKind[] = ['window', 'view', 'step'];
 const SIZE: ElementKind[] = ['window', 'view', 'text', 'button', 'select', 'progress'];
 const TEXT: ElementKind[] = ['text'];
 const TEXT_AND_BUTTON: ElementKind[] = ['text', 'button', 'select'];

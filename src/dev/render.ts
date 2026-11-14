@@ -32,10 +32,11 @@ const WINDOW_IGNORED = new Set(['width', 'height', 'flex']);
 
 function styleAttr(kind: Node['kind'], style: Style): string {
   const decls: string[] = [];
-  if (kind === 'window' || kind === 'view') {
+  if (kind === 'window' || kind === 'view' || kind === 'step') {
     decls.push('display:flex');
     if (style.flexDirection === undefined) decls.push('flex-direction:column');
   }
+  if (kind === 'step') decls.push('flex:1 1 auto');
   decls.push(...declarations(kind, style));
   if (kind === 'window') decls.push('width:100%', 'min-height:100vh', 'box-sizing:border-box');
   return decls.length ? ` style="${esc(decls.join(';'))}"` : '';
@@ -73,6 +74,10 @@ function languageOptions(languages: string[], auto: boolean): string {
     .join('');
 }
 
+function hasSteps(node: Node): boolean {
+  return node.kind === 'steps' || node.children.some(hasSteps);
+}
+
 function hasSelect(node: Node): boolean {
   return node.kind === 'select' || node.children.some(hasSelect);
 }
@@ -86,7 +91,7 @@ function msgKey(value: TextValue, texts: Texts): string {
   return ` data-msg-key="${texts.length - 1}"`;
 }
 
-function renderNode(node: Node, ir: Ir, texts: Texts, languages: string[]): string {
+function renderNode(node: Node, ir: Ir, texts: Texts, languages: string[], hiddenStep = false): string {
   const attrs = ` id="${esc(node.id)}"` + (node.classes.length ? ` class="${esc(node.classes.join(' '))}"` : '');
   let text = '';
   let bound = '';
@@ -101,8 +106,12 @@ function renderNode(node: Node, ir: Ir, texts: Texts, languages: string[]): stri
     text = esc(initial ? textOf(initial) : '');
   }
   const style = styleAttr(node.kind, node.style);
-  const children = node.children.map((child) => renderNode(child, ir, texts, languages)).join('');
+  const children = node.children.map((child, index) => renderNode(child, ir, texts, languages, node.kind === 'steps' && index > 0)).join('');
   switch (node.kind) {
+    case 'steps':
+      return `<div${attrs} style="display:contents">${children}</div>`;
+    case 'step':
+      return `<div${attrs} data-step="${esc(node.id)}"${hiddenStep ? ' hidden' : ''}${style}>${children}</div>`;
     case 'text':
       return `<div${attrs}${bound}${style}>${text}</div>`;
     case 'select': {
@@ -119,7 +128,8 @@ function renderNode(node: Node, ir: Ir, texts: Texts, languages: string[]): stri
     }
     case 'button': {
       const click = node.on?.click ? ` data-click="${esc(node.on.click)}"` : '';
-      return `<button type="button"${attrs}${bound}${click}${style}>${text}</button>`;
+      const waits = node.disabledDuringDownload ? ' data-waits-download' : '';
+      return `<button type="button"${attrs}${bound}${click}${waits}${style}>${text}</button>`;
     }
     default:
       return `<div${attrs}${style}>${children}</div>`;
@@ -131,6 +141,8 @@ const RELOAD = `try{new EventSource('/events').onmessage=function(e){if(e.data==
 // Light and dark follow the system (prefers-color-scheme); the app's own CSS colours are left as authored.
 const CSS = `:root{color-scheme:light dark}
 progress[hidden]{display:none}
+[data-step][hidden]{display:none!important}
+#forge-notice{padding:8px 16px;font-size:13px;background:#fff3cd;color:#533f03}
 body{margin:0;padding:0;font-family:system-ui,sans-serif;background:#fff;color:#222}
 h1.forge-errors{color:#b00020}
 #forge-tools{padding:16px;font-size:13px}
@@ -172,11 +184,28 @@ function render(){
   for(var id in values)renderState(id);
   if(data.root.title)document.title=tr(data.root.title);
 }
+// <steps>: only the current step shows; next, back, goTo and quit move between them (the preview ignores step sizes).
+var current=0;
+function showStep(to){
+  var steps=all('[data-step]');
+  if(!steps.length)return;
+  var at=current;
+  if(to==='next')at=Math.min(steps.length-1,current+1);
+  else if(to==='back')at=Math.max(0,current-1);
+  else if(to&&to.step){for(var i=0;i<steps.length;i++)if(steps[i].getAttribute('data-step')===to.step)at=i;}
+  else if(to===0)at=0;
+  current=at;
+  for(var j=0;j<steps.length;j++)steps[j].hidden=j!==current;
+}
+function notice(show){var n=document.getElementById('forge-notice');if(n)n.hidden=!show;}
 function run(id){
   var printed=[];
   var h=handlers[id];
   if(!h)return printed;
+  notice(false);
   h.effects.forEach(function(e){
+    if(e.op==='go'){showStep(e.to);return;}
+    if(e.op==='quit'){showStep(0);notice(true);return;}
     if(e.op!=='set')return;
     values[e.state]=e.value;
     renderState(e.state);
@@ -217,6 +246,8 @@ function bars(show,value){
     if(show&&value!==null&&value!==undefined)els[i].value=value;
     else els[i].removeAttribute('value');
   }
+  var waiting=all('[data-waits-download]');
+  for(var k=0;k<waiting.length;k++)waiting[k].disabled=show;
 }
 // Reads the response as text; with a Content-Length and a streaming body the bars follow the bytes received.
 function download(r,mine){
@@ -297,7 +328,8 @@ export function renderPage(ir: Ir, options: { languages?: string[] } = {}): stri
   // The app is the page; the language picker and the CLI panel sit below it and never shrink it.
   const tools = select || cli ? `<div id="forge-tools">${select}${cli}</div>` : '';
   const media = mediaCss(ir.root);
-  const body = `${media ? `<style id="forge-media">${media}</style>` : ''}${card}${tools}`;
+  const notice = hasSteps(ir.root) ? '<div id="forge-notice" hidden>The app would quit here. The preview goes back to the first step.</div>' : '';
+  const body = `${media ? `<style id="forge-media">${media}</style>` : ''}${card}${notice}${tools}`;
   const json = `<script type="application/json" id="forge-ir">${safeJson({ ...ir, languages, texts })}</script>`;
   return document_(ir.root.title ? textOf(ir.root.title) : ir.app.name, body + json, APP_SCRIPT);
 }

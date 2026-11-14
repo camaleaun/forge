@@ -56,6 +56,6 @@ describe('given a <progress> with mistakes', () => {
 
   it('when <progress> is unknown to older lists, then the element list includes it', () => {
     const { errors } = buildIr({ file: 'App.tsx', app, App: () => h('window', { 'forge:loc': [1, 1] }, h('div', { 'forge:loc': [3, 7] })) });
-    assert.deepEqual(errors, ['App.tsx:3:7: unknown element <div> (expected window | view | text | button | select | progress)']);
+    assert.deepEqual(errors, ['App.tsx:3:7: unknown element <div> (expected window | view | steps | step | text | button | select | progress)']);
   });
 });

@@ -4,6 +4,7 @@ import { cppString } from './escape.ts';
 import { textExpr } from './text-cpp.ts';
 
 function emitEffect(effect: Effect, ir: Ir, i18n: boolean): string {
+  if (effect.op !== 'set') throw new Error('the quit and navigation effects are not supported by the native generators yet');
   const value = i18n ? textExpr(ir, effect.value) : cppString(textOf(effect.value));
   return `  out.set_state(StateId::${effect.state}, ${value});`;
 }

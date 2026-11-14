@@ -2,7 +2,7 @@ import type { Ir, Node } from '../ir/types.ts';
 import { textOf } from '../ir/text.ts';
 import { cppString, objcString } from './escape.ts';
 import type { I18nGenOptions } from './i18n-options.ts';
-import { AUTO, checkProgressSources, effective, languageChoices, layoutOf, varies } from './layout.ts';
+import { AUTO, assertNoSteps, checkProgressSources, effective, languageChoices, layoutOf, varies } from './layout.ts';
 import type { LayoutNode } from './layout.ts';
 import { textExpr } from './text-cpp.ts';
 
@@ -331,6 +331,7 @@ class Emitter {
 
 export function generateMacosUi(ir: Ir, i18n?: I18nGenOptions): string {
   const { root } = ir;
+  assertNoSteps(root, 'macos');
   if (hasSelect(root) && (!i18n || i18n.packs.length === 0)) throw new Error('<select language> needs at least one language pack');
   checkProgressSources(root, i18n !== undefined);
   const layout = layoutOf(root, languageChoices(i18n));
