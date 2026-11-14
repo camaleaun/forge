@@ -7,7 +7,7 @@ import { generateCmake } from '../../src/gen/cmake.ts';
 import { generateMacosUi } from '../../src/gen/macos.ts';
 import { generateMessagesCpp } from '../../src/gen/messages-cpp.ts';
 import { generateProject, runtimeFilesFor, RUNTIME_FILES, RUNTIME_DIR } from '../../src/gen/index.ts';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { goldenI18n, helloI18nIr, helloI18nOptions, helloIr, node, serializers } from './helpers.ts';
 
@@ -128,5 +128,13 @@ describe('given the project of an i18n app', () => {
     ir.root.children.pop();
     const source = generateMacosUi(ir, helloI18nOptions({ menu: false }));
     assert.ok(!source.includes('add_language_item(languageMenu') && !source.includes('NSPopUpButton* w_'));
+  });
+});
+
+describe('given the macOS language loader source', () => {
+  it('when it stores the language choice, then it uses the standard user defaults (a suite named like the bundle id is refused by macOS)', () => {
+    const source = readFileSync(join(RUNTIME_DIR, 'i18n_macos.mm'), 'utf8');
+    assert.ok(!source.includes('initWithSuiteName'), 'initWithSuiteName with the own bundle id does not work');
+    assert.ok(source.includes('standardUserDefaults'));
   });
 });

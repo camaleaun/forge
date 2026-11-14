@@ -70,14 +70,8 @@ void notify() {
   if (g_hook) g_hook();
 }
 
-NSUserDefaults* defaults() {
-  static NSUserDefaults* suite = nil;
-  if (!suite) {
-    suite = [[NSUserDefaults alloc] initWithSuiteName:[NSString stringWithUTF8String:APP_ID]];
-    if (!suite) suite = [NSUserDefaults standardUserDefaults];
-  }
-  return suite;
-}
+// The app's own domain (its bundle identifier is APP_ID), so `defaults write <APP_ID> ...` reaches it.
+NSUserDefaults* defaults() { return [NSUserDefaults standardUserDefaults]; }
 
 void store_language(const std::string& value) {
   if (value.empty()) {
