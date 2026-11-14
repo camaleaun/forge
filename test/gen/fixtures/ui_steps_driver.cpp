@@ -25,6 +25,12 @@ void collect(GtkWidget* widget, std::vector<GtkWidget*>& out) {
   for (GtkWidget* child = gtk_widget_get_first_child(widget); child; child = gtk_widget_get_next_sibling(child)) collect(child, out);
 }
 
+// The label of a button; the toggle button inside a dropdown has none.
+const char* label_of(GtkWidget* button) {
+  const char* label = gtk_button_get_label(GTK_BUTTON(button));
+  return label ? label : "";
+}
+
 std::vector<GtkWidget*> visible_buttons() {
   std::vector<GtkWidget*> buttons;
   collect(GTK_WIDGET(the_window()), buttons);
@@ -38,7 +44,7 @@ void collect_rects(GtkWidget* widget, GtkWidget* content, std::string& out) {
   if (gtk_widget_get_mapped(widget) && (button || gtk_widget_get_height(widget) == 1)) {
     graphene_rect_t b;
     if (gtk_widget_compute_bounds(widget, content, &b))
-      out += " " + std::string(button ? gtk_button_get_label(GTK_BUTTON(widget)) : "line") + "=" + std::to_string(static_cast<int>(b.origin.x + 0.5f)) + "," +
+      out += " " + std::string(button ? label_of(widget) : "line") + "=" + std::to_string(static_cast<int>(b.origin.x + 0.5f)) + "," +
              std::to_string(static_cast<int>(b.origin.y + 0.5f)) + "," + std::to_string(static_cast<int>(b.size.width + 0.5f)) + "," + std::to_string(static_cast<int>(b.size.height + 0.5f));
   }
   for (GtkWidget* child = gtk_widget_get_first_child(widget); child; child = gtk_widget_get_next_sibling(child)) collect_rects(child, content, out);
@@ -55,7 +61,7 @@ void geometry() {
 void report() {
   GtkWidget* content = gtk_window_get_child(the_window());
   std::printf("%dx%d resizable=%d", gtk_widget_get_width(content), gtk_widget_get_height(content), gtk_window_get_resizable(the_window()) ? 1 : 0);
-  for (GtkWidget* button : visible_buttons()) std::printf(" %s%s", gtk_widget_is_sensitive(button) ? "" : "!", gtk_button_get_label(GTK_BUTTON(button)));
+  for (GtkWidget* button : visible_buttons()) std::printf(" %s%s", gtk_widget_is_sensitive(button) ? "" : "!", label_of(button));
   std::printf("\n");
   std::fflush(stdout);
   geometry();
@@ -85,7 +91,7 @@ gboolean step(gpointer) {
     gtk_widget_set_size_request(gtk_window_get_child(the_window()), w, h);
   }
   for (GtkWidget* button : visible_buttons()) {
-    if (label == gtk_button_get_label(GTK_BUTTON(button))) {
+    if (label == label_of(button)) {
       gtk_widget_activate(button);
       break;
     }
