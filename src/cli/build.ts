@@ -16,7 +16,7 @@ function hasLanguageSelect(node: Ir['root']): boolean {
 
 // Returns the process exit code; messages go to stderr.
 export async function build(options: BuildOptions): Promise<number> {
-  const { ir, errors, iconSvg, pkg } = await buildProjectIr(resolve(options.project));
+  const { ir, errors, iconSvg, glassLayers, pkg } = await buildProjectIr(resolve(options.project));
   if (!ir || !pkg) {
     for (const error of errors) console.error(`error: ${error}`);
     return 1;
@@ -50,7 +50,7 @@ export async function build(options: BuildOptions): Promise<number> {
   };
   let files: ProjectFiles;
   try {
-    files = generateProject(ir, options.target, { iconSvg, appId, ...(i18nOptions ? { i18n: i18nOptions } : {}) });
+    files = generateProject(ir, options.target, { iconSvg, glassLayers, appId, ...(i18nOptions ? { i18n: i18nOptions } : {}) });
   } catch (error) {
     console.error(`error: ${(error as Error).message}`);
     return 1;

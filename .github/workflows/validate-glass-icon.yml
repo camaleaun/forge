@@ -49,3 +49,36 @@ jobs:
             build/out/Assets.car
             build/out/partial.plist
             build/AppIcon.icon
+
+  forge-build:
+    # forge build on a fixture app with icon/, then the generated CMake compiles the glass icon into the .app.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Show the toolchain
+        run: |
+          cmake --version
+          xcrun actool --version
+      - name: forge build the glass-app fixture
+        run: node src/cli/forge.ts build --project test/fixtures/glass-app --target macos --out build/glass-app
+      - name: Configure and build the app
+        run: |
+          cmake -S build/glass-app -B build/glass-app/build -G "Unix Makefiles"
+          cmake --build build/glass-app/build
+      - name: The .app holds Assets.car and names the icon
+        run: |
+          contents=build/glass-app/build/hello.app/Contents
+          ls -l "$contents/Resources"
+          test -f "$contents/Resources/Assets.car"
+          test -f "$contents/Resources/AppIcon.icns"
+          test "$(plutil -extract CFBundleIconName raw "$contents/Info.plist")" = AppIcon
+          xcrun --sdk macosx assetutil --info "$contents/Resources/Assets.car" | head -40
+      - name: The same check as a test (must not be skipped)
+        run: node --test --test-reporter=spec test/gen/native/glass-icon-build.test.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glass-app
+          path: build/glass-app/build/hello.app

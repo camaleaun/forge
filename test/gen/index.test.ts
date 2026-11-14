@@ -114,3 +114,21 @@ describe('given the runtime file lists per target', () => {
     assert.ok(runtimeFilesFor(i18n, 'macos').includes('i18n_macos.mm'));
   });
 });
+
+describe('given glass icon layers', () => {
+  const layer = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#08f"/></svg>';
+  const glassLayers = { background: layer, foreground: [layer] };
+
+  it('when generating, then AppIcon.icon/ is part of the files and CMake compiles it', () => {
+    const files = generateProject(helloIr(), 'macos', { glassLayers });
+    assert.ok(files.has('AppIcon.icon/icon.json'));
+    assert.ok(files.has('AppIcon.icon/Assets/background.svg'));
+    assert.ok((files.get('CMakeLists.txt') as string).includes('actool'));
+  });
+
+  it('when there are no glass layers, then no AppIcon.icon/ and no actool in CMake', () => {
+    const files = generateProject(helloIr(), 'macos');
+    assert.ok(![...files.keys()].some((name) => name.startsWith('AppIcon.icon')));
+    assert.ok(!(files.get('CMakeLists.txt') as string).includes('actool'));
+  });
+});

@@ -2,6 +2,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { renderDmgBackground } from '../dmg/background.ts';
 import { buildIcns } from '../icon/icns.ts';
+import { buildGlassIcon } from '../icon/glass.ts';
+import type { GlassLayers } from '../icon/glass.ts';
 import { encodePng } from '../dmg/png.ts';
 import { withBuiltinMessages } from '../i18n/builtin.ts';
 import type { Ir } from '../ir/types.ts';
@@ -42,7 +44,7 @@ function dmgBackground(scale: 1 | 2): Uint8Array {
 }
 
 // Returns relative path -> file content for the generated (not runtime) files.
-export function generateProject(source: Ir, target: string, options: { iconSvg?: string; i18n?: I18nGenOptions; appId?: string } = {}): ProjectFiles {
+export function generateProject(source: Ir, target: string, options: { iconSvg?: string; glassLayers?: GlassLayers; i18n?: I18nGenOptions; appId?: string } = {}): ProjectFiles {
   const i18nMode = hasPacks(options.i18n);
   // forge's own help texts become messages in i18n mode so the packs can translate them.
   const ir = i18nMode ? withBuiltinMessages(source) : source;
@@ -55,12 +57,13 @@ export function generateProject(source: Ir, target: string, options: { iconSvg?:
     ['actions.cpp', generateActionsCpp(ir, !!i18n)],
     ['cli_router.cpp', generateCliRouter(ir, !!i18n)],
     ['ui_macos.mm', generateMacosUi(ir, i18n)],
-    ['CMakeLists.txt', generateCmake(ir, !!i18n)],
+    ['CMakeLists.txt', generateCmake(ir, !!i18n, { glassIcon: options.glassLayers !== undefined })],
     ['dmg/setup.applescript', generateDmgSetupScript(ir)],
     ['dmg/background.png', dmgBackground(1)],
     ['dmg/background@2x.png', dmgBackground(2)],
   ]);
   if (i18n) files.set('messages.cpp', generateMessagesCpp(ir, i18n));
+  if (options.glassLayers) for (const [name, content] of buildGlassIcon(options.glassLayers)) files.set(name, content);
   if (ir.app.icon && options.iconSvg !== undefined) files.set(ir.app.icon, buildIcns(options.iconSvg));
   return files;
 }

@@ -1,5 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { GLASS_FOLDER, loadGlassFolder } from '../icon/folder.ts';
+import type { GlassLayers } from '../icon/glass.ts';
 import { parseSvg } from '../icon/svg.ts';
 import { buildIr } from '../ir/build.ts';
 import type { Ir } from '../ir/types.ts';
@@ -10,7 +12,11 @@ import { applyStyles, parseStyles } from './styles.ts';
 // Loads the app in `dir` and returns its IR (with resolved styles) or every error found.
 export const ICON_FILE = 'AppIcon.icns';
 
-export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: string[]; iconSvg?: string; pkg?: PackageInfo }> {
+function isLink(path: string): boolean {
+  try { return lstatSync(path).isSymbolicLink(); } catch { return false; }
+}
+
+export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: string[]; iconSvg?: string; glassLayers?: GlassLayers; pkg?: PackageInfo }> {
   let project;
   try {
     project = await loadProject(dir);
@@ -37,6 +43,18 @@ export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: st
       errors.push((error as Error).message);
     }
   }
+  // An optional icon/ folder (background.svg + foreground-N.svg) becomes a Liquid Glass icon (AppIcon.icon).
+  let glassLayers: GlassLayers | undefined;
+  const glassDir = join(resolve(dir), GLASS_FOLDER);
+  if (existsSync(glassDir) || isLink(glassDir)) {
+    if (isLink(glassDir)) {
+      errors.push(`${GLASS_FOLDER}: a symbolic link is not allowed here (${GLASS_FOLDER}/ must be a real folder inside the project)`);
+    } else {
+      const folder = loadGlassFolder(glassDir);
+      errors.push(...folder.errors);
+      glassLayers = folder.layers;
+    }
+  }
   const pkg: PackageInfo = { name: project.app.name, version: project.app.version };
   try {
     const raw = JSON.parse(readFileSync(join(resolve(dir), 'package.json'), 'utf8'));
@@ -45,5 +63,5 @@ export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: st
   } catch {
     // loadProject already read this file; only the optional fields are lost.
   }
-  return errors.length > 0 ? { errors } : { ir: built.ir, errors, iconSvg, pkg };
+  return errors.length > 0 ? { errors } : { ir: built.ir, errors, iconSvg, glassLayers, pkg };
 }

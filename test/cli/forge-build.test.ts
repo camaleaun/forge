@@ -98,6 +98,37 @@ describe('given an app with an icon.svg', () => {
   });
 });
 
+describe('given an app with an icon/ folder of glass layers', () => {
+  const glassFixture = join(root, 'test/fixtures/glass-app');
+
+  it('when running forge build, then AppIcon.icon/ is written next to the sources and CMake compiles it', () => {
+    const target = mkdtempSync(join(tmpdir(), 'forge-glass-out-'));
+    try {
+      const result = forge('build', '--project', glassFixture, '--out', target);
+      assert.equal(result.status, 0, result.stderr);
+      assert.deepEqual(readdirSync(join(target, 'AppIcon.icon'), { recursive: true }).map(String).sort(), ['Assets', 'Assets/background.svg', 'Assets/foreground-1.svg', 'icon.json']);
+      assert.ok(readFileSync(join(target, 'CMakeLists.txt'), 'utf8').includes('xcrun actool'));
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+
+  it('when a layer is invalid, then forge build exits 1 with icon/<file>:line:column and writes nothing', () => {
+    const target = mkdtempSync(join(tmpdir(), 'forge-glass-bad-'));
+    withProjectCopy((dir) => {
+      mkdirSync(join(dir, 'icon'));
+      writeFileSync(join(dir, 'icon/background.svg'), '<svg viewBox="0 0 10 10">\n<image/></svg>');
+      writeFileSync(join(dir, 'icon/foreground-1.svg'), '<svg viewBox="0 0 10 10"/>');
+    }, (dir) => {
+      const result = forge('build', '--project', dir, '--out', target);
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /error: icon\/background\.svg:2:1: unsupported element <image>/);
+      assert.deepEqual(readdirSync(target), []);
+    });
+    rmSync(target, { recursive: true, force: true });
+  });
+});
+
 describe('given an app with several mistakes', () => {
   it('when running forge build, then every error is listed on stderr with its position, the exit code is 1 and nothing is written', () => {
     const target = mkdtempSync(join(tmpdir(), 'forge-bad-out-'));

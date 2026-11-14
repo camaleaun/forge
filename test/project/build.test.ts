@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildProjectIr } from '../../src/project/build.ts';
@@ -158,4 +158,60 @@ describe('given a package.json with a repository and forge options', () => {
       assert.deepEqual(result.pkg, { name: 'hello', version: '0.1.0', repository: 'github:o/r', forge: { i18n: { menu: false } } });
     });
   });
+});
+
+const LAYER = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#08f"/></svg>';
+
+function writeIconFolder(dir: string, files: Record<string, string>): void {
+  mkdirSync(join(dir, 'icon'));
+  for (const [name, content] of Object.entries(files)) writeFileSync(join(dir, 'icon', name), content);
+}
+
+describe('given an app with an icon/ folder of glass layers', () => {
+  it('when building the project IR, then the layers are returned and the classic icon is untouched', () =>
+    withCopy(async (dir) => {
+      writeIconFolder(dir, { 'background.svg': LAYER, 'foreground-1.svg': LAYER });
+      const { ir, errors, glassLayers, iconSvg } = await buildProjectIr(dir);
+      assert.deepEqual(errors, []);
+      assert.deepEqual(glassLayers, { background: LAYER, foreground: [LAYER] });
+      assert.equal(ir?.app.icon, undefined);
+      assert.equal(iconSvg, undefined);
+    }));
+
+  it('when icon.svg is there too, then both are kept (icon.svg is the fallback)', () =>
+    withCopy(async (dir) => {
+      writeIconFolder(dir, { 'background.svg': LAYER, 'foreground-1.svg': LAYER });
+      writeFileSync(join(dir, 'icon.svg'), ICON);
+      const { ir, glassLayers, iconSvg } = await buildProjectIr(dir);
+      assert.equal(ir?.app.icon, 'AppIcon.icns');
+      assert.equal(iconSvg, ICON);
+      assert.ok(glassLayers);
+    }));
+
+  it('when there is no icon/ folder, then no glass layers are returned', async () => {
+    assert.equal((await buildProjectIr(fixture)).glassLayers, undefined);
+  });
+
+  it('when a layer is broken, then the build fails with icon/<file>:line:column', () =>
+    withCopy(async (dir) => {
+      writeIconFolder(dir, { 'background.svg': LAYER, 'foreground-1.svg': '<svg viewBox="0 0 10 10">\n <text/>\n</svg>' });
+      const { ir, errors } = await buildProjectIr(dir);
+      assert.equal(ir, undefined);
+      assert.match(errors[0], /^icon\/foreground-1\.svg:2:2: unsupported element <text>/);
+    }));
+
+  it('when icon is a symlink to a folder elsewhere, then it is refused', () =>
+    withCopy(async (dir) => {
+      const elsewhere = mkdtempSync(join(tmpdir(), 'forge-elsewhere-'));
+      try {
+        writeFileSync(join(elsewhere, 'background.svg'), LAYER);
+        writeFileSync(join(elsewhere, 'foreground-1.svg'), LAYER);
+        symlinkSync(elsewhere, join(dir, 'icon'));
+        const { ir, errors } = await buildProjectIr(dir);
+        assert.equal(ir, undefined);
+        assert.deepEqual(errors, ['icon: a symbolic link is not allowed here (icon/ must be a real folder inside the project)']);
+      } finally {
+        rmSync(elsewhere, { recursive: true, force: true });
+      }
+    }));
 });
