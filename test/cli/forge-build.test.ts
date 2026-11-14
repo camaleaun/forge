@@ -314,7 +314,7 @@ describe('given forge build --target linux', () => {
       const result = forge('build', '--project', fixture, '--target', 'linux', '--out', target);
       assert.equal(result.status, 0, result.stderr);
       assert.deepEqual(readdirSync(target).sort(), [
-        'CMakeLists.txt', 'actions.cpp', 'cli_router.cpp', 'cli_surface.hpp', 'forge_app.hpp', 'local.forge.hello.desktop', 'local.forge.hello.metainfo.xml', 'main.cpp', 'ui_linux.cpp',
+        'CMakeLists.txt', 'actions.cpp', 'cli_router.cpp', 'cli_surface.hpp', 'forge_app.hpp', 'local.forge.hello.desktop', 'local.forge.hello.metainfo.xml', 'main.cpp', 'snap', 'ui_linux.cpp',
       ]);
     } finally {
       rmSync(target, { recursive: true, force: true });

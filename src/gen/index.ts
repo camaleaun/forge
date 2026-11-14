@@ -22,6 +22,7 @@ import type { PackageMeta } from './linux-desktop.ts';
 import { generateLinuxUi } from './linux.ts';
 import { generateMacosUi } from './macos.ts';
 import { generateMessagesCpp } from './messages-cpp.ts';
+import { generateSnapcraft } from './snap.ts';
 
 export const TARGETS = ['macos', 'linux'];
 // Hand-written runtime sources that the build copies next to the generated files.
@@ -80,6 +81,7 @@ function generateLinuxProject(ir: Ir, i18n: I18nGenOptions | undefined, appId: s
     ['CMakeLists.txt', generateCmakeLinux(ir, !!i18n, { appId, icon: !!ir.app.icon, meta })],
     [`${appId}.desktop`, generateDesktopEntry(ir, appId, meta)],
     [`${appId}.metainfo.xml`, generateMetainfo(ir, appId, meta)],
+    ['snap/snapcraft.yaml', generateSnapcraft(ir, appId, meta, i18n)],
   ]);
   if (i18n) files.set('messages.cpp', generateMessagesCpp(ir, i18n));
   if (ir.app.icon && iconSvg !== undefined) {
