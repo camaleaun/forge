@@ -1,4 +1,4 @@
-import type { Binding, Node, TextValue } from '../ir/types.ts';
+import type { Binding, MediaQuery, Node, Style, TextValue } from '../ir/types.ts';
 import { languageName } from '../i18n/names.ts';
 import type { I18nGenOptions } from './i18n-options.ts';
 
@@ -16,6 +16,11 @@ export type Paint = {
   fontWeight?: number;
   textAlign?: string;
 };
+
+// What an @media variant can change, in layout terms. A width or height of AUTO (-1) means "no fixed size".
+export const AUTO = -1;
+export type Changes = Partial<{ horizontal: boolean; gap: number; padding: Padding; width: number; height: number; grow: boolean } & Paint>;
+export type LayoutVariant = { query: MediaQuery; set: Changes };
 
 export type LayoutNode = {
   id: string;
@@ -37,6 +42,7 @@ export type LayoutNode = {
   handler?: string;       // button click handler
   languages?: [string, string][]; // select: [tag, endonym] choices
   progress?: Node['progress'];    // progress: value/max, indeterminate or source (passed through)
+  variants?: LayoutVariant[];     // @media variants in cascade order (a later one wins)
   children: LayoutNode[];
 };
 
@@ -62,6 +68,59 @@ function paintOf(node: Node): Paint {
   if (fontWeight !== undefined) paint.fontWeight = fontWeight;
   if (textAlign !== undefined) paint.textAlign = textAlign;
   return paint;
+}
+
+function changesOf(style: Style): Changes {
+  const set: Changes = {};
+  if (style.flexDirection !== undefined) set.horizontal = style.flexDirection === 'row';
+  const gap = num(style.gap);
+  if (gap !== undefined) set.gap = gap;
+  if (Array.isArray(style.padding)) set.padding = style.padding as Padding;
+  if (style.width !== undefined) set.width = num(style.width) ?? AUTO;
+  if (style.height !== undefined) set.height = num(style.height) ?? AUTO;
+  const flex = num(style.flex);
+  if (flex !== undefined) set.grow = flex > 0;
+  const { color, background, radius, fontSize, fontWeight, textAlign } = paintOf({ style } as Node);
+  if (color !== undefined) set.color = color;
+  if (background !== undefined) set.background = background;
+  if (radius !== undefined) set.radius = radius;
+  if (fontSize !== undefined) set.fontSize = fontSize;
+  if (fontWeight !== undefined) set.fontWeight = fontWeight;
+  if (textAlign !== undefined) set.textAlign = textAlign;
+  return set;
+}
+
+// Does some @media variant of the node set `key`?
+export function varies(node: LayoutNode, key: keyof Changes): boolean {
+  return (node.variants ?? []).some((variant) => key in variant.set);
+}
+
+// The C++ condition that tells whether a window of `w` by `h` matches the query.
+export function queryCondition(query: MediaQuery, w: string, h: string): string {
+  const parts: string[] = [];
+  if (query.minWidth !== undefined) parts.push(`${w} >= ${query.minWidth}`);
+  if (query.maxWidth !== undefined) parts.push(`${w} <= ${query.maxWidth}`);
+  if (query.minHeight !== undefined) parts.push(`${h} >= ${query.minHeight}`);
+  if (query.maxHeight !== undefined) parts.push(`${h} <= ${query.maxHeight}`);
+  return parts.join(' && ');
+}
+
+// A C++ expression for the value of `key` at the current window size: the base, overridden by each variant that
+// sets it, later variants last (so they win). `valueOf` turns a variant value into a C++ expression.
+export function effective<K extends keyof Changes>(
+  node: LayoutNode,
+  key: K,
+  base: string,
+  valueOf: (value: NonNullable<Changes[K]>) => string,
+  w = 'w',
+  h = 'h',
+): string {
+  let expr = base;
+  for (const variant of node.variants ?? []) {
+    const value = variant.set[key];
+    if (value !== undefined) expr = `(${queryCondition(variant.query, w, h)} ? ${valueOf(value as NonNullable<Changes[K]>)} : ${expr})`;
+  }
+  return expr;
 }
 
 // English first, then the endonym of every pack (no "Auto": the dropdown shows the language in use).
@@ -93,6 +152,7 @@ function build(node: Node, parent: LayoutNode | undefined, languages: [string, s
   if (node.content !== undefined) result.content = node.content;
   if (node.on?.click !== undefined) result.handler = node.on.click;
   if (node.progress !== undefined) result.progress = node.progress;
+  if (node.variants) result.variants = node.variants.map((variant) => ({ query: variant.query, set: changesOf(variant.style) }));
   if (kind === 'select') result.languages = languages ?? [];
   if (parent && parent.align === 'stretch') {
     const crossSize = parent.horizontal ? result.height : result.width;

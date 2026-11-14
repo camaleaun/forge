@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { generateProject, writeProjectFiles } from '../../../src/gen/index.ts';
 import type { Ir } from '../../../src/ir/types.ts';
-import { helloIr, node } from '../helpers.ts';
+import { helloIr, node, variantsIr } from '../helpers.ts';
 
 const cxx = ['c++', 'g++', 'clang++'].find((name) => spawnSync(name, ['--version']).status === 0);
 const gtk = spawnSync('pkg-config', ['--cflags', 'gtk4'], { encoding: 'utf8' });
@@ -32,7 +32,7 @@ function richIr(): Ir {
   return ir;
 }
 
-for (const [label, make] of [['hello', helloIr], ['rich', richIr]] as const) {
+for (const [label, make] of [['hello', helloIr], ['rich', richIr], ['variants', variantsIr]] as const) {
   describe(`given the generated Linux ${label} sources`, { skip }, () => {
     let dir = '';
     before(() => {

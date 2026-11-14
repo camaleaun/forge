@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { generateProject, writeProjectFiles } from '../../../src/gen/index.ts';
 import type { Ir } from '../../../src/ir/types.ts';
-import { helloIr, node } from '../helpers.ts';
+import { helloIr, node, variantsIr } from '../helpers.ts';
 
 const hasClang = spawnSync('clang++', ['--version']).status === 0;
 const dirs: string[] = [];
@@ -44,7 +44,7 @@ function check(dir: string, file: string, extra: string[] = []) {
 
 const MM_FLAGS = ['-x', 'objective-c++', '-fobjc-arc', '-Wno-deprecated-declarations'];
 
-for (const [label, make] of [['hello', helloIr], ['rich', richIr]] as const) {
+for (const [label, make] of [['hello', helloIr], ['rich', richIr], ['variants', variantsIr]] as const) {
   describe(`given the generated ${label} sources`, { skip: !hasClang && 'clang++ not installed' }, () => {
     let dir = '';
     before(() => {

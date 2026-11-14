@@ -2,7 +2,7 @@ import type { Ir, Node } from '../ir/types.ts';
 import { textOf } from '../ir/text.ts';
 import { cppString, objcString } from './escape.ts';
 import type { I18nGenOptions } from './i18n-options.ts';
-import { checkProgressSources, languageChoices, layoutOf } from './layout.ts';
+import { AUTO, checkProgressSources, effective, languageChoices, layoutOf, varies } from './layout.ts';
 import type { LayoutNode } from './layout.ts';
 import { textExpr } from './text-cpp.ts';
 
@@ -23,12 +23,19 @@ function orientation(axis: Axis): string {
   return axis.horizontal ? 'Horizontal' : 'Vertical';
 }
 
-function alignment(node: LayoutNode): string {
-  const names = node.horizontal
+function alignmentFor(align: LayoutNode['align'], horizontal: boolean): string {
+  const names = horizontal
     ? { start: 'Top', center: 'CenterY', end: 'Bottom', stretch: 'Top' }
     : { start: 'Leading', center: 'CenterX', end: 'Trailing', stretch: 'Leading' };
-  return `NSLayoutAttribute${names[node.align]}`;
+  return `NSLayoutAttribute${names[align]}`;
 }
+
+function alignment(node: LayoutNode): string {
+  return alignmentFor(node.align, node.horizontal);
+}
+
+const bool = (value: boolean): string => (value ? 'YES' : 'NO');
+const cap = (word: string): string => word[0].toUpperCase() + word.slice(1);
 
 function gravity(node: LayoutNode): string {
   const names = node.horizontal
@@ -56,6 +63,8 @@ function hasSelect(node: Node): boolean {
 class Emitter {
   readonly ir: Ir;
   readonly lines: string[] = [];
+  // The body of the block that applies @media variants for a window of w by h (see apply()).
+  readonly variantLines: string[] = [];
   buttonHandlers: (string | undefined)[] = [];
 
   readonly i18n: I18nGenOptions | undefined;
@@ -100,12 +109,113 @@ class Emitter {
     this.emit(`[${v} setFont:[NSFont systemFontOfSize:${pointSize} weight:${fontWeight}]];`);
   }
 
+  // Lines of the variants block: they run on every window size change.
+  vary(...lines: string[]): void {
+    for (const line of lines) this.variantLines.push(line === '' ? '' : `${INDENT}  ${line}`);
+  }
+
+  // The expression of the effective width or height (AUTO when none) at the current window size.
+  size(node: LayoutNode, key: 'width' | 'height'): string {
+    return effective(node, key, String(node[key] ?? AUTO), String);
+  }
+
+  // The expression of the parent's direction at the current window size.
+  horizontalOf(parent: LayoutNode): string {
+    return varies(parent, 'horizontal') ? `hz_${parent.id}` : bool(parent.horizontal);
+  }
+
+  // A child whose size, growth or stretching follows the window: its constraints are built here and set by apply().
+  followsWindow(node: LayoutNode, parent: LayoutNode): boolean {
+    return varies(parent, 'horizontal') || varies(node, 'width') || varies(node, 'height') || varies(node, 'grow') || (parent.align === 'stretch' && varies(parent, 'padding'));
+  }
+
+  attachVariants(node: LayoutNode, v: string, parent: LayoutNode, p: string): void {
+    const id = node.id;
+    for (const key of ['width', 'height'] as const) {
+      if (varies(node, key)) this.emit(`NSLayoutConstraint* c${key[0]}_${id} = [[${v} ${key}Anchor] constraintEqualToConstant:0];`, `[c${key[0]}_${id} setActive:NO];`);
+      else if (node[key] !== undefined) this.emit(`[[[${v} ${key}Anchor] constraintEqualToConstant:${node[key]}] setActive:YES];`);
+    }
+    const stretch = parent.align === 'stretch';
+    if (stretch) {
+      for (const key of ['width', 'height'] as const) this.emit(`NSLayoutConstraint* s${key[0]}_${id} = [[${v} ${key}Anchor] constraintEqualToAnchor:[${p} ${key}Anchor]];`, `[s${key[0]}_${id} setActive:NO];`);
+    }
+    const hz = this.horizontalOf(parent);
+    const sum = (a: number, b: number) =>
+      `(${[a, b].map((i) => effective(parent, 'padding', String(parent.padding[i]), (value) => String(value[i]))).join(' + ')})`;
+    this.vary('{');
+    for (const key of ['width', 'height'] as const) {
+      if (stretch || varies(node, key)) this.vary(`  const CGFloat ${key} = ${this.size(node, key)};`);
+    }
+    for (const key of ['width', 'height'] as const) {
+      if (varies(node, key)) this.vary(`  [c${key[0]}_${id} setActive:${key} >= 0];`, `  if (${key} >= 0) [c${key[0]}_${id} setConstant:${key}];`);
+    }
+    if (stretch) {
+      this.vary(`  [sh_${id} setActive:${hz} && height < 0];`, `  [sh_${id} setConstant:-${sum(0, 2)}];`);
+      this.vary(`  [sw_${id} setActive:!${hz} && width < 0];`, `  [sw_${id} setConstant:-${sum(1, 3)}];`);
+    }
+    this.vary(
+      `  const BOOL grow = ${effective(node, 'grow', bool(node.grow), bool)};`,
+      `  [${v} setContentHuggingPriority:(grow && ${hz}) ? 1 : 250 forOrientation:NSLayoutConstraintOrientationHorizontal];`,
+      `  [${v} setContentHuggingPriority:(grow && !${hz}) ? 1 : 250 forOrientation:NSLayoutConstraintOrientationVertical];`,
+      '}',
+    );
+  }
+
+  // Applies what varies on a box: direction, gap, padding, background, radius and whether a child grows.
+  boxVariants(node: LayoutNode, v: string): void {
+    const id = node.id;
+    if (varies(node, 'horizontal')) {
+      this.vary(
+        `const BOOL hz_${id} = ${effective(node, 'horizontal', bool(node.horizontal), bool)};`,
+        `[${v} setOrientation:hz_${id} ? NSUserInterfaceLayoutOrientationHorizontal : NSUserInterfaceLayoutOrientationVertical];`,
+        `[${v} setAlignment:hz_${id} ? ${alignmentFor(node.align, true)} : ${alignmentFor(node.align, false)}];`,
+      );
+    }
+    if (varies(node, 'gap')) this.vary(`[${v} setSpacing:${effective(node, 'gap', String(node.gap), String)}];`);
+    if (varies(node, 'padding')) {
+      const side = (i: number) => effective(node, 'padding', String(node.padding[i]), (value) => String(value[i]));
+      this.vary(`[${v} setEdgeInsets:NSEdgeInsetsMake(${side(0)}, ${side(3)}, ${side(2)}, ${side(1)})];`);
+    }
+    if (varies(node, 'background')) {
+      const base = node.paint.background === undefined ? '[NSColor clearColor]' : colorExpr(node.paint.background);
+      this.vary(`[[${v} layer] setBackgroundColor:[${effective(node, 'background', base, colorExpr)} CGColor]];`);
+    }
+    if (varies(node, 'radius')) this.vary(`[[${v} layer] setCornerRadius:${effective(node, 'radius', String(node.paint.radius ?? 0), String)}];`);
+    if (node.children.some((child) => varies(child, 'grow'))) {
+      const anyGrow = node.children.map((child) => effective(child, 'grow', bool(child.grow), bool)).join(' || ');
+      const idle = node.justify === 'space-between' ? 'EqualSpacing' : 'GravityAreas';
+      this.vary(`[${v} setDistribution:(${anyGrow}) ? NSStackViewDistributionFill : NSStackViewDistribution${idle}];`);
+    }
+  }
+
+  // Text, buttons and pop-ups: font and (for text) colour and alignment follow the window size.
+  textVariants(node: LayoutNode, v: string): void {
+    if (varies(node, 'fontSize') || varies(node, 'fontWeight')) {
+      const size = effective(node, 'fontSize', node.paint.fontSize === undefined ? '[NSFont systemFontSize]' : String(node.paint.fontSize), String);
+      const weight = effective(node, 'fontWeight', String(node.paint.fontWeight ?? 400), String);
+      this.vary(`[${v} setFont:[NSFont systemFontOfSize:${size} weight:(${weight} == 700 ? NSFontWeightBold : NSFontWeightRegular)]];`);
+    }
+    if (node.kind !== 'text') return;
+    if (varies(node, 'color')) {
+      const base = node.paint.color === undefined ? '[NSColor labelColor]' : colorExpr(node.paint.color);
+      this.vary(`[${v} setTextColor:${effective(node, 'color', base, colorExpr)}];`);
+    }
+    if (varies(node, 'textAlign')) {
+      const name = (align: string) => `NSTextAlignment${cap(align)}`;
+      this.vary(`[${v} setAlignment:${effective(node, 'textAlign', node.paint.textAlign === undefined ? 'NSTextAlignmentNatural' : name(node.paint.textAlign), name)}];`);
+    }
+  }
+
   // Adds `node` to `parent`, then emits the constraints that need the shared hierarchy.
   attach(node: LayoutNode, v: string, parent: LayoutNode, p: string): void {
     const axis = { horizontal: parent.horizontal };
     if (distribution(parent) === 'GravityAreas') this.emit(`[${p} addView:${v} inGravity:${gravity(parent)}];`);
     else this.emit(`[${p} addArrangedSubview:${v}];`);
 
+    if (this.followsWindow(node, parent)) {
+      this.attachVariants(node, v, parent, p);
+      return;
+    }
     for (const line of sizeConstraints(node, v)) this.emit(line);
     if (node.stretchInset !== undefined) {
       const crossSize = axis.horizontal ? 'height' : 'width';
@@ -129,14 +239,13 @@ class Emitter {
     this.emit(`[${v} setAlignment:${alignment(node)}];`);
     this.emit(`[${v} setDistribution:NSStackViewDistribution${distribution(node)}];`);
     const { background, radius } = node.paint;
-    if (background !== undefined || radius !== undefined) {
+    if (background !== undefined || radius !== undefined || varies(node, 'background') || varies(node, 'radius')) {
       this.emit(`[${v} setWantsLayer:YES];`);
       if (background !== undefined) this.emit(`[[${v} layer] setBackgroundColor:[${colorExpr(background)} CGColor]];`);
-      if (radius !== undefined) {
-        this.emit(`[[${v} layer] setCornerRadius:${radius}];`);
-        this.emit(`[[${v} layer] setMasksToBounds:YES];`);
-      }
+      if (radius !== undefined) this.emit(`[[${v} layer] setCornerRadius:${radius}];`);
+      if (radius !== undefined || varies(node, 'radius')) this.emit(`[[${v} layer] setMasksToBounds:YES];`);
     }
+    this.boxVariants(node, v);
     if (parent === undefined) {
       this.emit(
         `[content addSubview:${v}];`,
@@ -159,6 +268,7 @@ class Emitter {
     const v = `w_${node.id}`;
     this.emit(`NSTextField* ${v} = [NSTextField labelWithString:@""];`);
     this.font(node, v);
+    this.textVariants(node, v);
     const { color } = node.paint;
     if (color !== undefined) this.emit(`[${v} setTextColor:${colorExpr(color)}];`);
     const align = node.paint.textAlign;
@@ -174,6 +284,7 @@ class Emitter {
     this.emit(`NSButton* ${v} = [[NSButton alloc] init];`);
     this.emit(`[${v} setBezelStyle:NSBezelStyleRounded];`);
     this.font(node, v);
+    this.textVariants(node, v);
     this.content(node, v, true);
     this.emit(`[${v} setTag:${tag}];`, `[${v} setTarget:target];`, `[${v} setAction:@selector(invoke:)];`);
     this.attach(node, v, parent, `w_${parent.id}`);
@@ -185,6 +296,7 @@ class Emitter {
     this.emit(`NSPopUpButton* ${v} = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];`);
     this.emit(`[[${v} menu] setAutoenablesItems:NO];`);
     this.font(node, v);
+    this.textVariants(node, v);
     for (const [value, name] of node.languages ?? []) {
       this.emit(`add_language_item([${v} menu], ${v}, target, ${cppString(value)}, Text(${cppString(name)}));`);
     }
@@ -229,7 +341,37 @@ export function generateMacosUi(ir: Ir, i18n?: I18nGenOptions): string {
   const cases = emitter.buttonHandlers
     .map((handler, tag) => (handler === undefined ? '' : `    case ${tag}:\n      action_${handler}(g_surface);\n      break;\n`))
     .join('');
-  if (i18n) return i18nUi(ir, i18n, emitter, width, height, cases);
+  const ui = i18n ? i18nUi(ir, i18n, emitter, width, height, cases) : plainUi(ir, emitter, width, height, cases);
+  return emitter.variantLines.length === 0 ? ui : withVariants(ui, emitter);
+}
+
+// @media variants: a block with the code that applies them runs at start and whenever the window is resized.
+function withVariants(source: string, emitter: Emitter): string {
+  const apply = `    g_apply = ^(CGFloat w, CGFloat h) {
+      (void)w;
+      (void)h;
+${emitter.variantLines.join('\n')}
+    };
+    [window setDelegate:target];
+    g_apply([content frame].size.width, [content frame].size.height);
+
+`;
+  const resize = `@implementation ForgeTarget
+
+// The window size, not the screen, is what @media measures.
+- (void)windowDidResize:(NSNotification*)notification {
+  const NSSize size = [[(NSWindow*)[notification object] contentView] frame].size;
+  if (g_apply) g_apply(size.width, size.height);
+}
+`;
+  return source
+    .replace('@interface ForgeTarget : NSObject <NSApplicationDelegate>', 'static void (^g_apply)(CGFloat, CGFloat);\n\n@interface ForgeTarget : NSObject <NSApplicationDelegate, NSWindowDelegate>')
+    .replace('@implementation ForgeTarget\n', resize)
+    .replace('    [window makeKeyAndOrderFront:nil];', `${apply}    [window makeKeyAndOrderFront:nil];`);
+}
+
+function plainUi(ir: Ir, emitter: Emitter, width: number, height: number, cases: string): string {
+  const { root } = ir;
   return `// Generated by forge. Do not edit.
 #import <Cocoa/Cocoa.h>
 

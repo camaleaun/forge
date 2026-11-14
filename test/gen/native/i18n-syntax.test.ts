@@ -5,18 +5,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { generateProject, writeProjectFiles, RUNTIME_DIR } from '../../../src/gen/index.ts';
-import { helloI18nIr, helloI18nOptions } from '../helpers.ts';
+import { helloI18nIr, helloI18nOptions, variantsI18nIr } from '../helpers.ts';
 
 const hasClang = spawnSync('clang++', ['--version']).status === 0;
 const FLAGS = ['-std=c++20', '-Wall', '-Wextra', '-Werror', '-fno-exceptions', '-fno-rtti', '-fsyntax-only'];
 const MM_FLAGS = ['-x', 'objective-c++', '-fobjc-arc'];
 
-for (const menu of [true, false]) {
-  describe(`given the generated i18n hello sources (Language menu ${menu ? 'on' : 'off'})`, { skip: !hasClang && 'clang++ not installed' }, () => {
+for (const [label, make, menu] of [['hello, Language menu on', helloI18nIr, true], ['hello, Language menu off', helloI18nIr, false], ['hello with @media variants', variantsI18nIr, false]] as const) {
+  describe(`given the generated i18n ${label} sources`, { skip: !hasClang && 'clang++ not installed' }, () => {
     let dir = '';
     before(() => {
       dir = mkdtempSync(join(tmpdir(), 'forge-gen-i18n-syntax-'));
-      writeProjectFiles(generateProject(helloI18nIr(), 'macos', { i18n: helloI18nOptions({ menu }) }), dir);
+      writeProjectFiles(generateProject(make(), 'macos', { i18n: helloI18nOptions({ menu }) }), dir);
     });
     after(() => rmSync(dir, { recursive: true, force: true }));
 

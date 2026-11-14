@@ -2,8 +2,8 @@ import type { Ir, Node } from '../ir/types.ts';
 import { textOf } from '../ir/text.ts';
 import { cppString } from './escape.ts';
 import type { I18nGenOptions } from './i18n-options.ts';
-import { checkProgressSources, languageChoices, layoutOf } from './layout.ts';
-import type { Align, LayoutNode } from './layout.ts';
+import { AUTO, checkProgressSources, effective, languageChoices, layoutOf, queryCondition, varies } from './layout.ts';
+import type { Align, Changes, LayoutNode } from './layout.ts';
 import { textExpr } from './text-cpp.ts';
 
 const DEFAULT_WIDTH = 320;
@@ -18,6 +18,21 @@ function rgba(hex: string): string {
   return `rgba(${r}, ${g}, ${b}, ${Number((a / 255).toFixed(3))})`;
 }
 
+const bool = (value: boolean): string => (value ? 'true' : 'false');
+const XALIGN: Record<string, string> = { left: '0.0f', center: '0.5f', right: '1.0f' };
+
+// The CSS declarations for the properties of a style that GTK draws through CSS.
+function cssProps(set: Pick<Changes, 'padding' | 'background' | 'radius' | 'color' | 'fontSize' | 'fontWeight'>, padding = true): string[] {
+  const props: string[] = [];
+  if (set.padding && padding) props.push(`padding: ${set.padding.map((side) => `${side}px`).join(' ')}`);
+  if (set.background !== undefined) props.push(`background-color: ${rgba(set.background)}`);
+  if (set.radius !== undefined) props.push(`border-radius: ${set.radius}px`);
+  if (set.color !== undefined) props.push(`color: ${rgba(set.color)}`);
+  if (set.fontSize !== undefined) props.push(`font-size: ${set.fontSize}px`);
+  if (set.fontWeight !== undefined) props.push(`font-weight: ${set.fontWeight === 700 ? 700 : 400}`);
+  return props;
+}
+
 function hasSelect(node: Node): boolean {
   return node.kind === 'select' || node.children.some(hasSelect);
 }
@@ -28,6 +43,7 @@ class Emitter {
   readonly lines: string[] = [];
   readonly css: string[] = [];
   readonly handlers: (string | undefined)[] = [];
+  readonly variantLines: string[] = [];  // the body of the lambda that applies @media variants for a window of w by h
   pulses = false;  // an indeterminate bar needs the pulse timer callback
 
   constructor(ir: Ir, i18n: boolean) {
@@ -61,19 +77,96 @@ class Emitter {
     return content.kind === 'state' ? this.initialText(content.state) : textOf(content);
   }
 
-  // One CSS rule per widget that needs padding, color, background, radius or font.
+  // One CSS rule per widget that needs padding, color, background, radius or font. Each @media variant that
+  // sets one of them adds a rule for a class (m0, m1, ...) that apply() puts on the widget while its query matches;
+  // the classes are more specific than the base rule and later ones win, which is the cascade order.
   style(node: LayoutNode, v: string): void {
     const { paint, padding } = node;
-    const props: string[] = [];
-    if (padding.some((side) => side > 0)) props.push(`padding: ${padding.map((side) => `${side}px`).join(' ')}`);
-    if (paint.background !== undefined) props.push(`background-color: ${rgba(paint.background)}`);
-    if (paint.radius !== undefined) props.push(`border-radius: ${paint.radius}px`);
-    if (paint.color !== undefined) props.push(`color: ${rgba(paint.color)}`);
-    if (paint.fontSize !== undefined) props.push(`font-size: ${paint.fontSize}px`);
-    if (paint.fontWeight !== undefined) props.push(`font-weight: ${paint.fontWeight === 700 ? 700 : 400}`);
-    if (props.length === 0) return;
+    const props = cssProps({ ...paint, padding: padding.some((side) => side > 0) ? padding : undefined });
+    const variants = (node.variants ?? []).map((variant, index) => ({ index, props: cssProps(variant.set) })).filter((variant) => variant.props.length > 0);
+    if (props.length === 0 && variants.length === 0) return;
     this.emit(`gtk_widget_set_name(${v}, "${v}");`);
-    this.css.push(`#${v} { ${props.join('; ')}; }`);
+    if (props.length > 0) this.css.push(`#${v} { ${props.join('; ')}; }`);
+    for (const variant of variants) {
+      this.css.push(`#${v}.m${variant.index} { ${variant.props.join('; ')}; }`);
+      const query = node.variants![variant.index].query;
+      this.vary(`if (${queryCondition(query, 'w', 'h')}) gtk_widget_add_css_class(${v}, "m${variant.index}");`, `else gtk_widget_remove_css_class(${v}, "m${variant.index}");`);
+    }
+  }
+
+  // Lines of the variants lambda: they run on every window size change.
+  vary(...lines: string[]): void {
+    for (const line of lines) this.variantLines.push(line === '' ? '' : `${INDENT}${INDENT}${line}`);
+  }
+
+  size(node: LayoutNode, key: 'width' | 'height'): string {
+    return effective(node, key, String(node[key] ?? AUTO), String);
+  }
+
+  horizontalOf(parent: LayoutNode): string {
+    return varies(parent, 'horizontal') ? `hz_${parent.id}` : bool(parent.horizontal);
+  }
+
+  // A child whose size, growth or alignment follows the window: apply() sets them again.
+  followsWindow(node: LayoutNode, parent: LayoutNode): boolean {
+    return varies(parent, 'horizontal') || varies(node, 'width') || varies(node, 'height') || varies(node, 'grow');
+  }
+
+  attachVariants(node: LayoutNode, v: string, parent: LayoutNode): void {
+    const hz = this.horizontalOf(parent);
+    const crossSet = `${hz} ? height >= 0 : width >= 0`;
+    const cross = parent.align === 'stretch' ? `(${crossSet}) ? GTK_ALIGN_START : GTK_ALIGN_FILL` : ALIGN_NAME[parent.align];
+    this.vary(
+      '{',
+      `  const int width = ${this.size(node, 'width')};`,
+      `  const int height = ${this.size(node, 'height')};`,
+      `  gtk_widget_set_size_request(${v}, width, height);`,
+      `  const bool grow = ${effective(node, 'grow', bool(node.grow), bool)};`,
+      `  gtk_widget_set_hexpand(${v}, grow && ${hz});`,
+      `  gtk_widget_set_vexpand(${v}, grow && !${hz});`,
+      `  const GtkAlign cross = ${cross};`,
+      `  gtk_widget_set_valign(${v}, ${hz} ? cross : GTK_ALIGN_FILL);`,
+      `  gtk_widget_set_halign(${v}, ${hz} ? GTK_ALIGN_FILL : cross);`,
+      '}',
+    );
+  }
+
+  // Applies what varies on a box: direction (with everything that depends on it), gap and the gaps between children.
+  boxVariants(node: LayoutNode, v: string, inner: string | undefined): void {
+    const id = node.id;
+    const between = node.justify === 'space-between';
+    const hz = this.horizontalOf(node);
+    if (varies(node, 'horizontal')) {
+      const orientation = (h: string) => `${h} ? GTK_ORIENTATION_HORIZONTAL : GTK_ORIENTATION_VERTICAL`;
+      this.vary(`const bool hz_${id} = ${effective(node, 'horizontal', bool(node.horizontal), bool)};`, `gtk_orientable_set_orientation(GTK_ORIENTABLE(${v}), ${orientation(hz)});`);
+      if (inner !== undefined) {
+        const align = ALIGN_NAME[node.justify === 'center' ? 'center' : 'end'];
+        this.vary(
+          `gtk_orientable_set_orientation(GTK_ORIENTABLE(${inner}), ${orientation(hz)});`,
+          `gtk_widget_set_halign(${inner}, ${hz} ? ${align} : GTK_ALIGN_FILL);`,
+          `gtk_widget_set_valign(${inner}, ${hz} ? GTK_ALIGN_FILL : ${align});`,
+          `gtk_widget_set_hexpand(${inner}, ${hz});`,
+          `gtk_widget_set_vexpand(${inner}, !${hz});`,
+        );
+      }
+      if (between) {
+        for (let index = 0; index < node.children.length - 1; ++index) {
+          const spacer = `spacer_${id}_${index}`;
+          this.vary(`gtk_orientable_set_orientation(GTK_ORIENTABLE(${spacer}), ${orientation(hz)});`, `gtk_widget_set_hexpand(${spacer}, ${hz});`, `gtk_widget_set_vexpand(${spacer}, !${hz});`);
+        }
+      }
+    }
+    if (!varies(node, 'gap') && !(between && varies(node, 'horizontal'))) return;
+    const gap = effective(node, 'gap', String(node.gap), String);
+    if (!between) {
+      this.vary(`gtk_box_set_spacing(GTK_BOX(${inner ?? v}), ${gap});`);
+      return;
+    }
+    // With space-between the box has no spacing: the gap is a margin before every child but the first.
+    node.children.slice(1).forEach((child) => {
+      const target = `w_${child.id}`;
+      this.vary(`gtk_widget_set_margin_start(${target}, ${hz} ? ${gap} : 0);`, `gtk_widget_set_margin_top(${target}, ${hz} ? 0 : ${gap});`);
+    });
   }
 
   // Places `node` (already created as `v`) in `holder`, with its alignment, size and growth.
@@ -91,6 +184,7 @@ class Emitter {
       this.emit(`gtk_widget_set_margin_${parent.horizontal ? 'start' : 'top'}(${v}, ${parent.gap});`);
     }
     this.emit(`gtk_box_append(GTK_BOX(${holder}), ${v});`);
+    if (this.followsWindow(node, parent)) this.attachVariants(node, v, parent);
   }
 
   box(node: LayoutNode, parent: LayoutNode | undefined, holder: string | undefined, first: boolean): void {
@@ -113,6 +207,7 @@ class Emitter {
         `gtk_box_append(GTK_BOX(${v}), ${children});`,
       );
     }
+    this.boxVariants(node, v, children === v ? undefined : children);
     node.children.forEach((child, index) => {
       if (betweenSpacers && index > 0) {
         const spacer = `spacer_${node.id}_${index - 1}`;
@@ -132,8 +227,10 @@ class Emitter {
     const v = `w_${node.id}`;
     const bound = this.i18n && node.content !== undefined && node.content.kind !== 'literal';
     this.emit(`GtkWidget* ${v} = gtk_label_new(${cppString(bound ? '' : this.textOf(node))});`);
-    const xalign = { right: '1.0f', center: '0.5f' }[node.paint.textAlign ?? ''] ?? '0.0f';
-    this.emit(`gtk_label_set_xalign(GTK_LABEL(${v}), ${xalign});`);
+    this.emit(`gtk_label_set_xalign(GTK_LABEL(${v}), ${XALIGN[node.paint.textAlign ?? 'left']});`);
+    if (varies(node, 'textAlign')) {
+      this.vary(`gtk_label_set_xalign(GTK_LABEL(${v}), ${effective(node, 'textAlign', XALIGN[node.paint.textAlign ?? 'left'], (align) => XALIGN[align])});`);
+    }
     this.style(node, v);
     if (!this.bindContent(node, v, false) && node.content?.kind === 'state') this.emit(`g_surface.bind(StateId::${node.content.state}, ${v}, false);`);
     this.attach(node, v, parent, holder, first);
@@ -167,9 +264,12 @@ class Emitter {
     const v = `w_${node.id}`;
     const data = node.progress ?? {};
     this.emit(`GtkWidget* ${v} = gtk_progress_bar_new();`);
-    if (node.paint.color !== undefined) {
-      this.emit(`gtk_widget_set_name(${v}, "${v}");`);
-      this.css.push(`#${v} progress { background-color: ${rgba(node.paint.color)}; background-image: none; }`);
+    const colors = (node.variants ?? []).map((variant, index) => ({ index, color: variant.set.color })).filter((variant) => variant.color !== undefined);
+    if (node.paint.color !== undefined || colors.length > 0) this.emit(`gtk_widget_set_name(${v}, "${v}");`);
+    if (node.paint.color !== undefined) this.css.push(`#${v} progress { background-color: ${rgba(node.paint.color)}; background-image: none; }`);
+    for (const { index, color } of colors) {
+      this.css.push(`#${v}.m${index} progress { background-color: ${rgba(color!)}; background-image: none; }`);
+      this.vary(`if (${queryCondition(node.variants![index].query, 'w', 'h')}) gtk_widget_add_css_class(${v}, "m${index}");`, `else gtk_widget_remove_css_class(${v}, "m${index}");`);
     }
     if (data.indeterminate) {
       this.pulses = true;
@@ -373,7 +473,7 @@ ${emitter.css.join('\n')}
                                              GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
   g_object_unref(provider);
 `;
-  return `// Generated by forge. Do not edit.
+  const ui = `// Generated by forge. Do not edit.
 #include <gtk/gtk.h>
 
 ${translated ? '#include <string>\n' : ''}#include <vector>
@@ -427,4 +527,57 @@ ${initialStates}` : ''}  GtkApplication* app = gtk_application_new(${cppString(a
   return status;
 }
 `;
+  return emitter.variantLines.length === 0 ? ui : withVariants(ui, emitter, width, height);
+}
+
+// What @media measures is the size of the window's content (not the screen): the root widget's allocation.
+const WINDOW_RESIZE = `
+// @media: apply() sets what the variants change for a window of w by h; a change of the window size runs it again.
+std::function<void(int, int)> g_apply;
+int g_applied_w = -1;
+int g_applied_h = -1;
+
+void window_resized(GtkWidget* window) {
+  GtkWidget* content = gtk_window_get_child(GTK_WINDOW(window));
+  int w = content ? gtk_widget_get_width(content) : 0;
+  int h = content ? gtk_widget_get_height(content) : 0;
+  if (w <= 0 || h <= 0) gtk_window_get_default_size(GTK_WINDOW(window), &w, &h);
+  if (!g_apply || (w == g_applied_w && h == g_applied_h)) return;
+  g_applied_w = w;
+  g_applied_h = h;
+  g_apply(w, h);
+}
+
+void on_default_size(GObject* window, GParamSpec*, gpointer) { window_resized(GTK_WIDGET(window)); }
+
+gboolean resized_later(gpointer window) {
+  window_resized(GTK_WIDGET(window));
+  return G_SOURCE_REMOVE;
+}
+
+// The default size does not always follow a resize by the user: the surface reports every layout.
+void on_surface_layout(GdkSurface*, int, int, gpointer window) { g_idle_add(resized_later, window); }
+
+void on_realize(GtkWidget* window, gpointer) {
+  g_signal_connect(gtk_native_get_surface(GTK_NATIVE(window)), "layout", G_CALLBACK(on_surface_layout), window);
+}
+`;
+
+function withVariants(source: string, emitter: Emitter, width: number, height: number): string {
+  const apply = `  g_apply = [=](int w, int h) {
+    (void)w;
+    (void)h;
+${emitter.variantLines.join('\n')}
+  };
+  g_signal_connect(window, "notify::default-width", G_CALLBACK(on_default_size), nullptr);
+  g_signal_connect(window, "notify::default-height", G_CALLBACK(on_default_size), nullptr);
+  g_signal_connect(window, "realize", G_CALLBACK(on_realize), nullptr);
+  g_applied_w = ${width};
+  g_applied_h = ${height};
+  g_apply(${width}, ${height});
+`;
+  return source
+    .replace('#include <gtk/gtk.h>\n\n', '#include <gtk/gtk.h>\n\n#include <functional>\n')
+    .replace('GtkSurface g_surface;\n', `GtkSurface g_surface;\n${WINDOW_RESIZE}`)
+    .replace('  gtk_window_present(GTK_WINDOW(window));', `${apply}  gtk_window_present(GTK_WINDOW(window));`);
 }

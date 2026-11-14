@@ -54,3 +54,36 @@ export function helloI18nOptions(extra: Partial<I18nGenOptions> = {}): I18nGenOp
     ...extra,
   };
 }
+
+// Every kind of node with @media variants on every property a variant may set (for syntax and text checks).
+export function variantsIr(base: Ir = helloIr()): Ir {
+  const ir = base;
+  ir.root.style = { ...ir.root.style, alignItems: 'stretch' };
+  ir.root.variants = [
+    { query: { maxWidth: 500 }, style: { gap: 4, padding: [1, 2, 3, 4], background: '#102030ff', borderRadius: 6, flexDirection: 'row' } },
+    { query: { minWidth: 400, maxHeight: 300 }, style: { gap: 2 } },
+  ];
+  const [text, button] = ir.root.children;
+  text.variants = [{ query: { maxWidth: 500 }, style: { color: '#ff0000ff', fontSize: 11, fontWeight: 700, textAlign: 'center', width: 90, height: 18, flex: 1 } }];
+  button.variants = [{ query: { minWidth: 450 }, style: { fontSize: 18, width: 'auto', flex: 1 } }];
+  ir.root.children.push(
+    node('view', 'inner', {
+      style: { flexDirection: 'row', justifyContent: 'space-between', gap: 3, background: '#ffffff80' },
+      variants: [{ query: { maxWidth: 480 }, style: { padding: [2, 2, 2, 2], gap: 1, borderRadius: 2, flexDirection: 'column' } }],
+      children: [
+        node('text', 'x', { content: { kind: 'literal', value: 'X' }, variants: [{ query: { minHeight: 100 }, style: { fontWeight: 400, color: '#00ff00ff' } }] }),
+        node('progress', 'bar', { progress: { value: 0.5 }, style: { width: 50 }, variants: [{ query: { maxWidth: 480 }, style: { width: 80, height: 6, color: '#00aa00ff' } }] }),
+      ],
+    }),
+    node('view', 'centered', {
+      style: { justifyContent: 'center', alignItems: 'center' },
+      variants: [{ query: { maxWidth: 480 }, style: { flexDirection: 'row', gap: 9 } }],
+      children: [node('text', 'y', { content: { kind: 'literal', value: 'Y' } })],
+    }),
+  );
+  return ir;
+}
+
+export function variantsI18nIr(): Ir {
+  return variantsIr(helloI18nIr());
+}
