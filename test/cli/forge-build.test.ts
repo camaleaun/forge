@@ -6,23 +6,41 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = new URL('../../', import.meta.url).pathname;
-const fixture = join(root, 'test/fixtures/hello');
+const fixture = join(root, 'test/fixtures/hello-app');
+const GENERATED_FILES = [
+  'CMakeLists.txt', 'actions.cpp', 'cli_router.cpp', 'cli_surface.hpp', 'forge_app.hpp', 'main.cpp', 'ui_macos.mm',
+];
 let out = '';
 
 function forge(...args: string[]) {
   return spawnSync(process.execPath, ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', join(root, 'src/cli/forge.ts'), ...args], { encoding: 'utf8' });
 }
 
-describe('given a project directory with forge.json and actions.ts', () => {
+function withProjectCopy(change: (dir: string) => void, run: (dir: string) => void) {
+  const dir = mkdtempSync(join(tmpdir(), 'forge-bad-'));
+  try {
+    cpSync(fixture, dir, { recursive: true });
+    change(dir);
+    run(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe('given an app with package.json, App.tsx and App.css', () => {
   before(() => { out = mkdtempSync(join(tmpdir(), 'forge-build-')); });
   after(() => rmSync(out, { recursive: true, force: true }));
 
   it('when running "forge build --target macos", then the output holds every generated and runtime file and the exit code is 0', () => {
     const result = forge('build', '--project', fixture, '--target', 'macos', '--out', out);
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(readdirSync(out).sort(), [
-      'CMakeLists.txt', 'actions.cpp', 'cli_router.cpp', 'cli_surface.hpp', 'forge_app.hpp', 'main.cpp', 'ui_macos.mm',
-    ]);
+    assert.deepEqual(readdirSync(out).sort(), GENERATED_FILES);
+  });
+
+  it('when the app is built, then the generated sources carry the app data (version, state text, command)', () => {
+    assert.ok(readFileSync(join(out, 'forge_app.hpp'), 'utf8').includes('APP_VERSION = "0.1.0"'));
+    assert.ok(readFileSync(join(out, 'ui_macos.mm'), 'utf8').includes('Press the button'));
+    assert.ok(readFileSync(join(out, 'cli_router.cpp'), 'utf8').includes('"--greet"'));
   });
 
   it('when running forge build twice on the same project, then the outputs are byte-identical', () => {
@@ -42,27 +60,30 @@ describe('given a project directory with forge.json and actions.ts', () => {
       assert.match(result.stderr, /Usage:\n\s+forge build/);
     }
   });
+
+  it('when the target is not supported, then the exit code is 1 and stderr names the target', () => {
+    const result = forge('build', '--project', fixture, '--target', 'beos', '--out', out);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /unsupported target "beos" \(supported: macos\)/);
+  });
 });
 
-describe('given a project whose forge.json has several mistakes', () => {
-  it('when running forge build, then every validation error is listed on stderr and the exit code is 1', () => {
-    const project = mkdtempSync(join(tmpdir(), 'forge-bad-'));
+describe('given an app with several mistakes', () => {
+  it('when running forge build, then every error is listed on stderr with its position, the exit code is 1 and nothing is written', () => {
     const target = mkdtempSync(join(tmpdir(), 'forge-bad-out-'));
-    try {
-      cpSync(fixture, project, { recursive: true });
-      const spec = JSON.parse(readFileSync(join(project, 'forge.json'), 'utf8'));
-      spec.app.version = '1.0';
-      spec.widgets[1].action = 'missing';
-      writeFileSync(join(project, 'forge.json'), JSON.stringify(spec));
-      const result = forge('build', '--project', project, '--out', target);
+    withProjectCopy((dir) => {
+      writeFileSync(join(dir, 'App.css'), 'window { margin-top: 4px; }\n');
+      const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+      pkg.version = '1.0';
+      writeFileSync(join(dir, 'package.json'), JSON.stringify(pkg));
+    }, (dir) => {
+      const result = forge('build', '--project', dir, '--out', target);
       assert.equal(result.status, 1);
-      assert.match(result.stderr, /app\.version: "1\.0" must be semver/);
-      assert.match(result.stderr, /widgets\[1\]\.action: unknown action "missing"/);
+      assert.match(result.stderr, /error: package\.json: version "1\.0" must be semver/);
+      assert.match(result.stderr, /error: App\.css:1:10: unknown property "margin-top"/);
       assert.deepEqual(readdirSync(target), []);
-    } finally {
-      rmSync(project, { recursive: true, force: true });
-      rmSync(target, { recursive: true, force: true });
-    }
+    });
+    rmSync(target, { recursive: true, force: true });
   });
 });
 

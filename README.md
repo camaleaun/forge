@@ -1,13 +1,47 @@
 # forge
 
-Generates tiny native apps from a single source: `forge.json` (tokens, window, widgets, CLI commands) and `actions.ts` (behavior).
-v1 target: macOS + CLI, Label and Button only. Linux, Windows and Web come later.
+Tiny native apps from a web-like source: TSX for the markup, CSS for the look, TypeScript for the behavior.
 
-Status: work in progress. The spec validator, the action tracer and the string escaping are done; the generator is next.
+```tsx
+// App.tsx
+import { state } from 'forge';
+import './App.css';
+
+const message = state('Press the button');
+function greet() { message.set('Hello, world!'); }
+
+export const commands = { '--greet': { description: 'Print the greeting', run: greet } };
+
+export default function App() {
+  return (
+    <window title="Hello, forge">
+      <text class="message">{message}</text>
+      <button onClick={greet}>Greet</button>
+    </window>
+  );
+}
+```
+
+An app is `package.json` (name, version) + `App.tsx` + `App.css`. v1 targets macOS (plus a CLI in the same binary);
+Linux, Windows, web and mobile come later. Elements: `window`, `view`, `text`, `button`.
+
+## Commands
+```sh
+forge build [--project <dir>] [--target macos] --out <dir>   # generate C++/Objective-C++ + CMake
+forge start [--project <dir>] [--port 5170] [--lan]         # live preview in a browser (--lan: phone, token + QR)
+forge info  [--project <dir>] --field name|version
+forge manifest --dir <dir> --tag <tag> --repo <owner/repo>  # latest.json for the auto-updater
+```
+Link `bin/forge` into a directory on your PATH to use `forge` anywhere.
+
+## How it works
+`App.tsx` is transformed by a small dependency-free JSX transformer (loaded with Node module hooks), `App.css` by a CSS-subset parser.
+Both become one IR (`forge start` renders it as HTML, `forge build` turns it into native code). Handlers run once at build time and
+are recorded as effects, so the generated binary carries no JavaScript (hello is about 73 KB).
 
 ## Project rules
-- No npm packages in the tooling or in the generated programs. `package.json` only sets `"type": "module"` and the test script.
-- Node 24 runs the `.ts` files directly, with no build step and no type checking. Tests use the built-in runner: `npm test` (`node --test`).
+- No npm packages in the tooling or in the generated programs (only the docs site may use Astro later).
+- Node 24 runs the `.ts` files directly, with no build step and no type checking. Tests use the built-in runner: `npm test`.
 - TDD/BDD: every behavior starts as a Given/When/Then test that is seen failing before any code is written.
 
 ## License

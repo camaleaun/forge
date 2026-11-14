@@ -1,5 +1,5 @@
 import type { Ir } from '../ir/types.ts';
-import { cppString } from '../generate/escape.ts';
+import { cppString } from './escape.ts';
 
 const BUILTINS = [
   { flag: '--version', description: 'Print the version' },

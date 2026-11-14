@@ -1,5 +1,5 @@
 import type { Ir } from '../ir/types.ts';
-import { cppString } from '../generate/escape.ts';
+import { cppString } from './escape.ts';
 
 // CMake quoted arguments share C-like escaping for the characters forge allows in names.
 const q = cppString;

@@ -1,5 +1,5 @@
 import type { Ir } from '../ir/types.ts';
-import { cppString } from '../generate/escape.ts';
+import { cppString } from './escape.ts';
 
 export function generateAppHeader(ir: Ir): string {
   const stateIds = ir.states.map((state) => state.id).join(', ');

@@ -1,5 +1,5 @@
 import type { Ir, Node, Style } from '../ir/types.ts';
-import { objcString } from '../generate/escape.ts';
+import { objcString } from './escape.ts';
 
 const DEFAULT_WIDTH = 320;
 const DEFAULT_HEIGHT = 120;

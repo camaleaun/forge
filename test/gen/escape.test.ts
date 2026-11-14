@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { cppString, objcString } from '../../src/generate/escape.ts';
+import { cppString, objcString } from '../../src/gen/escape.ts';
 
 describe('given text emitted as a C++ string literal', () => {
   it('when it has a quote and a backslash, then both are escaped', () => {
