@@ -28,11 +28,14 @@ Linux, Windows, web and mobile come later. Elements: `window`, `view`, `text`, `
 ## Commands
 ```sh
 forge build [--project <dir>] [--target macos] --out <dir>   # generate C++/Objective-C++ + CMake
-forge start [--project <dir>] [--port 5170] [--lan]         # live preview in a browser (--lan: phone, token + QR)
+forge start [--project <dir>] [--port 5170] [--local]       # live preview; reachable from your phone (token + QR), --local keeps it on this machine
 forge info  [--project <dir>] --field name|version
 forge manifest --dir <dir> --tag <tag> --repo <owner/repo>  # latest.json for the auto-updater
 ```
 Link `bin/forge` into a directory on your PATH to use `forge` anywhere.
+
+`forge start` serves the preview on your local network (a secret token in the URL is required) and prints the URLs and a QR code,
+so you can open it on a phone on the same Wi-Fi. In a terminal: `o` opens it in the browser, `q` shows the QR code again, `h` shows help, Ctrl+C quits.
 
 ## How it works
 `App.tsx` is transformed by a small dependency-free JSX transformer (loaded with Node module hooks), `App.css` by a CSS-subset parser.
