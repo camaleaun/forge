@@ -60,7 +60,10 @@ void geometry() {
 
 void report() {
   GtkWidget* content = gtk_window_get_child(the_window());
-  std::printf("%dx%d resizable=%d", gtk_widget_get_width(content), gtk_widget_get_height(content), gtk_window_get_resizable(the_window()) ? 1 : 0);
+  // The size of the whole content widget, padding included (gtk_widget_get_width leaves the CSS padding out).
+  graphene_rect_t box;
+  gtk_widget_compute_bounds(content, content, &box);
+  std::printf("%dx%d resizable=%d", static_cast<int>(box.size.width + 0.5f), static_cast<int>(box.size.height + 0.5f), gtk_window_get_resizable(the_window()) ? 1 : 0);
   for (GtkWidget* button : visible_buttons()) std::printf(" %s%s", gtk_widget_is_sensitive(button) ? "" : "!", label_of(button));
   std::printf("\n");
   std::fflush(stdout);
