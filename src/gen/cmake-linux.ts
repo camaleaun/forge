@@ -52,7 +52,7 @@ add_executable(${name}
 
 target_compile_options(${name} PRIVATE
   -Os -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections -fvisibility=hidden -Wall -Wextra)
-target_link_options(${name} PRIVATE -Wl,--gc-sections,--as-needed -s)
+target_link_options(${name} PRIVATE -Wl,--gc-sections,--as-needed -Wl,-z,max-page-size=4096 -Wl,-z,common-page-size=4096 -s)
 target_link_libraries(${name} PRIVATE PkgConfig::GTK4${soupLink})
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)

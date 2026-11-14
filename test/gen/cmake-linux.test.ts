@@ -27,6 +27,10 @@ describe('given the hello IR', () => {
     assert.ok(cmake.includes('-Wl,--gc-sections,--as-needed'));
     assert.ok(cmake.includes('-s'));
   });
+  it('when generating, then segments are aligned to 4 KB pages (aarch64 linkers default to 64 KB, which pads the binary by tens of KB)', () => {
+    assert.ok(cmake.includes('-Wl,-z,max-page-size=4096'));
+    assert.ok(cmake.includes('-z,common-page-size=4096'));
+  });
   it('when generating, then project() gets the numeric version', () => {
     const ir = helloIr();
     ir.app.version = '0.2.0-rc.1';

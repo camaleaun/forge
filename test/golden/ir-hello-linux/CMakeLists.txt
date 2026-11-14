@@ -21,7 +21,7 @@ add_executable(hello
 
 target_compile_options(hello PRIVATE
   -Os -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections -fvisibility=hidden -Wall -Wextra)
-target_link_options(hello PRIVATE -Wl,--gc-sections,--as-needed -s)
+target_link_options(hello PRIVATE -Wl,--gc-sections,--as-needed -Wl,-z,max-page-size=4096 -Wl,-z,common-page-size=4096 -s)
 target_link_libraries(hello PRIVATE PkgConfig::GTK4)
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
