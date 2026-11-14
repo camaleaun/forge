@@ -42,4 +42,18 @@ install(TARGETS hello BUNDLE DESTINATION .)
 set(CPACK_GENERATOR DragNDrop)
 set(CPACK_PACKAGE_NAME "hello")
 set(CPACK_PACKAGE_VERSION "0.1.0")
+set(CPACK_DMG_VOLUME_NAME "hello")
+
+option(FORGE_STYLED_DMG "Style the .dmg window with the Finder (needs automation permission)" ON)
+if(FORGE_STYLED_DMG)
+  execute_process(
+    COMMAND tiffutil -cathidpicheck "${CMAKE_SOURCE_DIR}/dmg/background.png" "${CMAKE_SOURCE_DIR}/dmg/background@2x.png"
+            -out "${CMAKE_BINARY_DIR}/background.tiff"
+    RESULT_VARIABLE forge_tiff_result)
+  if(forge_tiff_result EQUAL 0)
+    set(CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_BINARY_DIR}/background.tiff")
+    set(CPACK_DMG_DS_STORE_SETUP_SCRIPT "${CMAKE_SOURCE_DIR}/dmg/setup.applescript")
+  endif()
+endif()
+
 include(CPack)

@@ -52,6 +52,20 @@ install(TARGETS ${name} BUNDLE DESTINATION .)
 set(CPACK_GENERATOR DragNDrop)
 set(CPACK_PACKAGE_NAME ${q(name)})
 set(CPACK_PACKAGE_VERSION ${q(version)})
+set(CPACK_DMG_VOLUME_NAME ${q(name)})
+
+option(FORGE_STYLED_DMG "Style the .dmg window with the Finder (needs automation permission)" ON)
+if(FORGE_STYLED_DMG)
+  execute_process(
+    COMMAND tiffutil -cathidpicheck "\${CMAKE_SOURCE_DIR}/dmg/background.png" "\${CMAKE_SOURCE_DIR}/dmg/background@2x.png"
+            -out "\${CMAKE_BINARY_DIR}/background.tiff"
+    RESULT_VARIABLE forge_tiff_result)
+  if(forge_tiff_result EQUAL 0)
+    set(CPACK_DMG_BACKGROUND_IMAGE "\${CMAKE_BINARY_DIR}/background.tiff")
+    set(CPACK_DMG_DS_STORE_SETUP_SCRIPT "\${CMAKE_SOURCE_DIR}/dmg/setup.applescript")
+  endif()
+endif()
+
 include(CPack)
 `;
 }

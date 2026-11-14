@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { generateProject } from '../../../src/gen/index.ts';
+import { generateProject, writeProjectFiles } from '../../../src/gen/index.ts';
 import type { Ir } from '../../../src/ir/types.ts';
 import { helloIr, node } from '../helpers.ts';
 
@@ -32,7 +32,7 @@ function richIr(): Ir {
 function write(ir: Ir): string {
   const dir = mkdtempSync(join(tmpdir(), 'forge-gen-syntax-'));
   dirs.push(dir);
-  for (const [name, content] of generateProject(ir, 'macos')) writeFileSync(join(dir, name), content);
+  writeProjectFiles(generateProject(ir, 'macos'), dir);
   return dir;
 }
 

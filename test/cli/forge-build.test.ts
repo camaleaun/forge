@@ -1,6 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 const root = new URL('../../', import.meta.url).pathname;
 const fixture = join(root, 'test/fixtures/hello-app');
 const GENERATED_FILES = [
-  'CMakeLists.txt', 'actions.cpp', 'cli_router.cpp', 'cli_surface.hpp', 'forge_app.hpp', 'main.cpp', 'ui_macos.mm',
+  'CMakeLists.txt', 'actions.cpp', 'cli_router.cpp', 'cli_surface.hpp', 'dmg', 'forge_app.hpp', 'main.cpp', 'ui_macos.mm',
 ];
 let out = '';
 
@@ -47,7 +47,10 @@ describe('given an app with package.json, App.tsx and App.css', () => {
     const second = mkdtempSync(join(tmpdir(), 'forge-build-'));
     try {
       assert.equal(forge('build', '--project', fixture, '--out', second).status, 0);
-      for (const name of readdirSync(out)) assert.equal(readFileSync(join(second, name), 'utf8'), readFileSync(join(out, name), 'utf8'), name);
+      for (const name of readdirSync(out, { recursive: true })) {
+        if (statSync(join(out, String(name))).isDirectory()) continue;
+        assert.deepEqual(readFileSync(join(second, String(name))), readFileSync(join(out, String(name))), String(name));
+      }
     } finally {
       rmSync(second, { recursive: true, force: true });
     }

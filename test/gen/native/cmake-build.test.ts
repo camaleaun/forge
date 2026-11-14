@@ -4,7 +4,7 @@ import { copyFileSync, existsSync, mkdtempSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { generateProject, RUNTIME_DIR, RUNTIME_FILES } from '../../../src/gen/index.ts';
+import { generateProject, writeProjectFiles, RUNTIME_DIR, RUNTIME_FILES } from '../../../src/gen/index.ts';
 import { helloIr } from '../helpers.ts';
 
 const canBuild = process.platform === 'darwin' && spawnSync('cmake', ['--version']).status === 0;
@@ -15,7 +15,7 @@ let binary = '';
 describe('given a generated hello project on macOS', { skip: !canBuild && 'needs macOS and cmake' }, () => {
   before(() => {
     dir = mkdtempSync(join(tmpdir(), 'forge-gen-cmake-'));
-    for (const [name, content] of generateProject(helloIr(), 'macos')) writeFileSync(join(dir, name), content);
+    writeProjectFiles(generateProject(helloIr(), 'macos'), dir);
     for (const file of RUNTIME_FILES) copyFileSync(join(RUNTIME_DIR, file), join(dir, file));
 
     const configure = spawnSync('cmake', ['-S', dir, '-B', join(dir, 'build'), '-G', 'Unix Makefiles'], { encoding: 'utf8' });

@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderDmgBackground } from '../../src/dmg/background.ts';
+import { DMG_ICON_CENTERS, DMG_WINDOW } from '../../src/dmg/layout.ts';
 
 type Img = ReturnType<typeof renderDmgBackground>;
 
@@ -91,5 +92,14 @@ describe('given the DMG background renderer', () => {
   it('when rendered then alpha is 255 everywhere', () => {
     const { rgba } = renderDmgBackground({ scale: 2 });
     for (let i = 3; i < rgba.length; i += 4) assert.equal(rgba[i], 255);
+  });
+});
+
+
+describe('given the shared DMG layout', () => {
+  it('when the background is rendered, then its size and icon centers are the shared layout values', () => {
+    const image = renderDmgBackground({ scale: 1 });
+    assert.deepEqual([image.width, image.height], [DMG_WINDOW.width, DMG_WINDOW.height]);
+    assert.deepEqual(image.iconCenters, { app: [...DMG_ICON_CENTERS.app], applications: [...DMG_ICON_CENTERS.applications] });
   });
 });

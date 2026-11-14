@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { generateProject, RUNTIME_DIR } from '../../../src/gen/index.ts';
+import { generateProject, writeProjectFiles, RUNTIME_DIR } from '../../../src/gen/index.ts';
 import { helloIr, ROOT } from '../helpers.ts';
 
 const hasClang = spawnSync('clang++', ['--version']).status === 0;
@@ -16,7 +16,7 @@ const run = (...args: string[]) => spawnSync(binary, args, { encoding: 'utf8' })
 describe('given the hello app linked with a stub UI', { skip: !hasClang && 'clang++ not installed' }, () => {
   before(() => {
     dir = mkdtempSync(join(tmpdir(), 'forge-gen-run-'));
-    for (const [name, content] of generateProject(helloIr(), 'macos')) writeFileSync(join(dir, name), content);
+    writeProjectFiles(generateProject(helloIr(), 'macos'), dir);
     binary = join(dir, 'hello');
     const build = spawnSync('clang++', [
       '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', dir, '-I', RUNTIME_DIR,

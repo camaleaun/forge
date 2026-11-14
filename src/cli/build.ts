@@ -1,6 +1,7 @@
-import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { RUNTIME_DIR, RUNTIME_FILES, generateProject } from '../gen/index.ts';
+import { RUNTIME_DIR, RUNTIME_FILES, generateProject, writeProjectFiles } from '../gen/index.ts';
+import type { ProjectFiles } from '../gen/index.ts';
 import { buildProjectIr } from '../project/build.ts';
 
 export type BuildOptions = { project: string; target: string; out: string };
@@ -12,7 +13,7 @@ export async function build(options: BuildOptions): Promise<number> {
     for (const error of errors) console.error(`error: ${error}`);
     return 1;
   }
-  let files: Map<string, string>;
+  let files: ProjectFiles;
   try {
     files = generateProject(ir, options.target);
   } catch (error) {
@@ -20,7 +21,7 @@ export async function build(options: BuildOptions): Promise<number> {
     return 1;
   }
   mkdirSync(options.out, { recursive: true });
-  for (const [name, content] of files) writeFileSync(join(options.out, name), content);
+  writeProjectFiles(files, options.out);
   for (const name of RUNTIME_FILES) copyFileSync(join(RUNTIME_DIR, name), join(options.out, name));
   return 0;
 }
