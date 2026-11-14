@@ -26,6 +26,11 @@ describe('given the repository CI workflow', () => {
     assert.match(text, /libsoup-3\.0-dev/);
   });
 
+  it('when the Linux job runs the tests, then the AppImage is really executed (network tests on)', () => {
+    const text = readFileSync(workflow, 'utf8');
+    assert.match(text, /FORGE_NETWORK_TESTS: '1'/);
+  });
+
   it('when the Linux job builds the sample app, then it checks the CLI and runs the window under a virtual display and keeps screenshots', () => {
     const text = readFileSync(workflow, 'utf8');
     assert.match(text, /forge build --target linux/);

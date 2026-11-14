@@ -43,6 +43,9 @@ jobs:
             rpm squashfs-tools desktop-file-utils appstream xvfb xdotool imagemagick dbus-x11
       - name: Test
         run: npm test
+        env:
+          # Also downloads the pinned AppImage runtime and runs the AppImage it builds.
+          FORGE_NETWORK_TESTS: '1'
       - name: Build the sample app
         run: |
           bin/forge build --target linux --project test/fixtures/hello-app --out "$RUNNER_TEMP/hello-src"
