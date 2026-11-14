@@ -1,0 +1,91 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { buildProjectIr } from '../../src/project/build.ts';
+
+const fixture = new URL('../fixtures/hello-app', import.meta.url).pathname;
+const expected = JSON.parse(readFileSync(new URL('../fixtures/hello.ir.json', import.meta.url), 'utf8'));
+
+// Source positions depend on the exact App.tsx layout; they are covered by the error tests.
+function withoutLoc(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutLoc);
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'loc').map(([key, v]) => [key, withoutLoc(v)]));
+  }
+  return value;
+}
+
+describe('given the hello app in TSX with its CSS', () => {
+  it('when building the project IR, then it equals the expected hello IR and reports no errors', async () => {
+    const { ir, errors } = await buildProjectIr(fixture);
+    assert.deepEqual(errors, []);
+    assert.deepEqual(withoutLoc(ir), withoutLoc(expected));
+  });
+});
+
+function withCopy(run: (dir: string) => Promise<void>) {
+  const dir = mkdtempSync(join(tmpdir(), 'forge-project-'));
+  cpSync(fixture, dir, { recursive: true });
+  return run(dir).finally(() => rmSync(dir, { recursive: true, force: true }));
+}
+
+describe('given an app with mistakes', () => {
+  it('when App.tsx has a JSX syntax error, then the error carries App.tsx:line:column', () =>
+    withCopy(async (dir) => {
+      const source = readFileSync(join(dir, 'App.tsx'), 'utf8').replace('</button>', '</text>');
+      writeFileSync(join(dir, 'App.tsx'), source);
+      const { ir, errors } = await buildProjectIr(dir);
+      assert.equal(ir, undefined);
+      assert.match(errors[0], /^App\.tsx:\d+:\d+: expected <\/button> but found <\/text>/);
+    }));
+
+  it('when App.css uses an unsupported property, then the error carries App.css:line:column', () =>
+    withCopy(async (dir) => {
+      writeFileSync(join(dir, 'App.css'), 'window { margin-top: 4px; }\n');
+      const { ir, errors } = await buildProjectIr(dir);
+      assert.equal(ir, undefined);
+      assert.match(errors[0], /^App\.css:1:10: unknown property "margin-top"/);
+    }));
+
+  it('when a style is not supported on the element, then the error points at the declaration', () =>
+    withCopy(async (dir) => {
+      writeFileSync(join(dir, 'App.css'), 'button {\n  background: #ff0000;\n}\n');
+      const { errors } = await buildProjectIr(dir);
+      assert.deepEqual(errors, ['App.css:2:3: "background" is not supported on <button> in v1']);
+    }));
+
+  it('when the app reads a state value, then the build reports it', () =>
+    withCopy(async (dir) => {
+      const source = readFileSync(join(dir, 'App.tsx'), 'utf8').replace("message.set('Hello, world!');", 'message.set(`${message}!`);');
+      writeFileSync(join(dir, 'App.tsx'), source);
+      const { errors } = await buildProjectIr(dir);
+      assert.deepEqual(errors, ['handler "greet": state values cannot be read in v1; bind the state as a child instead']);
+    }));
+
+  it('when package.json or App.tsx is missing, then the build says which file', async () => {
+    const empty = mkdtempSync(join(tmpdir(), 'forge-empty-'));
+    try {
+      assert.match((await buildProjectIr(empty)).errors[0], /^package\.json: cannot read it/);
+      writeFileSync(join(empty, 'package.json'), JSON.stringify({ name: 'x', version: '0.1.0' }));
+      assert.deepEqual((await buildProjectIr(empty)).errors, ['App.tsx: the app entry file was not found']);
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('given an app edited between two builds', () => {
+  it('when building twice after changing the text and the CSS, then the second IR reflects both changes', () =>
+    withCopy(async (dir) => {
+      const first = await buildProjectIr(dir);
+      assert.equal(first.ir?.states[0].initial, 'Press the button');
+      writeFileSync(join(dir, 'App.tsx'), readFileSync(join(dir, 'App.tsx'), 'utf8').replace('Press the button', 'Go!'));
+      writeFileSync(join(dir, 'App.css'), readFileSync(join(dir, 'App.css'), 'utf8').replace('width: 100px', 'width: 140px'));
+      const second = await buildProjectIr(dir);
+      assert.deepEqual(second.errors, []);
+      assert.equal(second.ir?.states[0].initial, 'Go!');
+      assert.equal(second.ir?.root.children[1].style.width, 140);
+    }));
+});
