@@ -27,6 +27,7 @@ export function helloI18nIr(): Ir {
   ir.root.title = message('Hello, forge');
   ir.root.children[1].content = message('Greet');
   ir.root.children.push(node('select', 'select_3', { select: { language: true }, style: { width: 160 }, loc: [10, 7] }));
+  ir.root.children.push(node('progress', 'progress_4', { progress: { source: 'language-download' }, style: { width: 160 }, loc: [11, 7] }));
   ir.states[0].initial = message('Press the button');
   ir.handlers[0].effects[0].value = message('Hello, world!');
   ir.handlers.push({ id: 'files', effects: [{ op: 'set', state: 's0', value: message('%d file', { plural: '%d files', count: 3, args: ['3'] }) }] });

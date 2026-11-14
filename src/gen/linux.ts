@@ -2,7 +2,7 @@ import type { Ir, Node } from '../ir/types.ts';
 import { textOf } from '../ir/text.ts';
 import { cppString } from './escape.ts';
 import type { I18nGenOptions } from './i18n-options.ts';
-import { languageChoices, layoutOf } from './layout.ts';
+import { checkProgressSources, languageChoices, layoutOf } from './layout.ts';
 import type { Align, LayoutNode } from './layout.ts';
 import { textExpr } from './text-cpp.ts';
 
@@ -18,10 +18,6 @@ function rgba(hex: string): string {
   return `rgba(${r}, ${g}, ${b}, ${Number((a / 255).toFixed(3))})`;
 }
 
-function hasProgress(node: Node): boolean {
-  return node.kind === 'progress' || node.children.some(hasProgress);
-}
-
 function hasSelect(node: Node): boolean {
   return node.kind === 'select' || node.children.some(hasSelect);
 }
@@ -32,6 +28,7 @@ class Emitter {
   readonly lines: string[] = [];
   readonly css: string[] = [];
   readonly handlers: (string | undefined)[] = [];
+  pulses = false;  // an indeterminate bar needs the pulse timer callback
 
   constructor(ir: Ir, i18n: boolean) {
     this.ir = ir;
@@ -164,8 +161,31 @@ class Emitter {
     this.attach(node, v, parent, holder, first);
   }
 
+  // <progress>: a GtkProgressBar. Indeterminate bars are pulsed by a timer; a language-download bar starts hidden
+  // (a hidden widget takes no space in a GtkBox) and the surface shows it while a download runs.
+  progress(node: LayoutNode, parent: LayoutNode, holder: string, first: boolean): void {
+    const v = `w_${node.id}`;
+    const data = node.progress ?? {};
+    this.emit(`GtkWidget* ${v} = gtk_progress_bar_new();`);
+    if (node.paint.color !== undefined) {
+      this.emit(`gtk_widget_set_name(${v}, "${v}");`);
+      this.css.push(`#${v} progress { background-color: ${rgba(node.paint.color)}; background-image: none; }`);
+    }
+    if (data.indeterminate) {
+      this.pulses = true;
+      this.emit(`g_timeout_add(100, pulse_bar, ${v});`);
+    } else if (data.source === 'language-download') {
+      this.emit(`gtk_widget_set_visible(${v}, FALSE);`, `g_surface.add_download_bar(${v});`);
+    } else {
+      const fraction = Number(((data.value ?? 0) / (data.max ?? 1)).toFixed(4));
+      this.emit(`gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(${v}), ${fraction});`);
+    }
+    this.attach(node, v, parent, holder, first);
+  }
+
   node(node: LayoutNode, parent: LayoutNode | undefined, holder: string | undefined, first: boolean): void {
-    if (node.kind === 'select' && parent) this.select(node, parent, holder!, first);
+    if (node.kind === 'progress' && parent) this.progress(node, parent, holder!, first);
+    else if (node.kind === 'select' && parent) this.select(node, parent, holder!, first);
     else if (node.kind === 'text' && parent) this.text(node, parent, holder!, first);
     else if (node.kind === 'button' && parent) this.button(node, parent, holder!, first);
     else this.box(node, parent, holder, first);
@@ -197,6 +217,8 @@ class GtkSurface : public Surface {
       if (known.widget == dropdown && index < known.choices.size()) return known.choices[index].value;
     return "";
   }
+  // A bar that shows the language download: hidden until one runs.
+  void add_download_bar(GtkWidget* bar) { bars_.push_back(bar); }
   // True while refresh_all() changes widgets: their change signals must not choose a language again.
   bool refreshing() const { return refreshing_ > 0; }
 
@@ -238,6 +260,11 @@ class GtkSurface : public Surface {
       for (std::size_t i = 0; i < dropdown.choices.size(); ++i)
         if (dropdown.choices[i].value == active) gtk_drop_down_set_selected(GTK_DROP_DOWN(dropdown.widget), static_cast<guint>(i));
     }
+    const bool downloading = download_active();
+    for (GtkWidget* bar : bars_) {
+      gtk_widget_set_visible(bar, downloading);
+      if (downloading) gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(bar), download_progress(""));
+    }
     --refreshing_;
   }
 
@@ -260,6 +287,7 @@ class GtkSurface : public Surface {
   };
   std::vector<Bound> bound_;
   std::vector<Dropdown> dropdowns_;
+  std::vector<GtkWidget*> bars_;
   std::vector<Text> states_;
   Text empty_;
   int refreshing_ = 0;
@@ -305,11 +333,18 @@ void on_language_selected(GObject* object, GParamSpec*, gpointer) {
 }
 `;
 
+const PULSE_BAR = `
+gboolean pulse_bar(gpointer bar) {
+  gtk_progress_bar_pulse(GTK_PROGRESS_BAR(bar));
+  return G_SOURCE_CONTINUE;
+}
+`;
+
 export function generateLinuxUi(ir: Ir, appId: string, i18n?: I18nGenOptions): string {
   const { root } = ir;
-  if (hasProgress(root)) throw new Error('progress is not supported by the linux generator yet');
   if (hasSelect(root) && (!i18n || i18n.packs.length === 0)) throw new Error('<select language> needs at least one language pack');
   const translated = i18n !== undefined && i18n.packs.length > 0;
+  checkProgressSources(root, translated);
   const layout = layoutOf(root, languageChoices(i18n));
   const width = layout.width ?? DEFAULT_WIDTH;
   const height = layout.height ?? DEFAULT_HEIGHT;
@@ -356,7 +391,7 @@ void on_click(GtkButton*, gpointer data) {
   switch (GPOINTER_TO_INT(data)) {
 ${cases}  }
 }
-${translated && hasSelect(root) ? LANGUAGE_SELECTED : ''}
+${emitter.pulses ? PULSE_BAR : ''}${translated && hasSelect(root) ? LANGUAGE_SELECTED : ''}
 void on_quit(GSimpleAction*, GVariant*, gpointer app) { g_application_quit(G_APPLICATION(app)); }
 
 void activate(GtkApplication* app, gpointer) {

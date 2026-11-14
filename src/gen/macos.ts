@@ -2,7 +2,7 @@ import type { Ir, Node } from '../ir/types.ts';
 import { textOf } from '../ir/text.ts';
 import { cppString, objcString } from './escape.ts';
 import type { I18nGenOptions } from './i18n-options.ts';
-import { languageChoices, layoutOf } from './layout.ts';
+import { checkProgressSources, languageChoices, layoutOf } from './layout.ts';
 import type { LayoutNode } from './layout.ts';
 import { textExpr } from './text-cpp.ts';
 
@@ -47,10 +47,6 @@ function sizeConstraints(node: LayoutNode, v: string): string[] {
   if (node.width !== undefined) lines.push(`[[[${v} widthAnchor] constraintEqualToConstant:${node.width}] setActive:YES];`);
   if (node.height !== undefined) lines.push(`[[[${v} heightAnchor] constraintEqualToConstant:${node.height}] setActive:YES];`);
   return lines;
-}
-
-function hasProgress(node: Node): boolean {
-  return node.kind === 'progress' || node.children.some(hasProgress);
 }
 
 function hasSelect(node: Node): boolean {
@@ -195,8 +191,26 @@ class Emitter {
     this.attach(node, v, parent, `w_${parent.id}`);
   }
 
+  // <progress>: a bar NSProgressIndicator. A language-download bar is hidden (it takes no space in the stack)
+  // until a download runs; the surface shows it and sets its value. The system draws the fill, so `color` is not applied.
+  progress(node: LayoutNode, parent: LayoutNode): void {
+    const v = `w_${node.id}`;
+    const data = node.progress ?? {};
+    this.emit(`NSProgressIndicator* ${v} = [[NSProgressIndicator alloc] init];`);
+    this.emit(`[${v} setStyle:NSProgressIndicatorStyleBar];`);
+    if (data.indeterminate) {
+      this.emit(`[${v} setIndeterminate:YES];`, `[${v} startAnimation:nil];`);
+    } else {
+      this.emit(`[${v} setIndeterminate:NO];`, `[${v} setMinValue:0];`, `[${v} setMaxValue:${data.max ?? 1}];`);
+      if (data.source === 'language-download') this.emit(`g_surface.bind_download(${v});`);
+      else this.emit(`[${v} setDoubleValue:${data.value ?? 0}];`);
+    }
+    this.attach(node, v, parent, `w_${parent.id}`);
+  }
+
   node(node: LayoutNode, parent: LayoutNode | undefined): void {
-    if (node.kind === 'select' && parent) this.select(node, parent);
+    if (node.kind === 'progress' && parent) this.progress(node, parent);
+    else if (node.kind === 'select' && parent) this.select(node, parent);
     else if (node.kind === 'text' && parent) this.text(node, parent);
     else if (node.kind === 'button' && parent) this.button(node, parent);
     else this.container(node, parent);
@@ -205,8 +219,8 @@ class Emitter {
 
 export function generateMacosUi(ir: Ir, i18n?: I18nGenOptions): string {
   const { root } = ir;
-  if (hasProgress(root)) throw new Error('progress is not supported by the macos generator yet');
   if (hasSelect(root) && (!i18n || i18n.packs.length === 0)) throw new Error('<select language> needs at least one language pack');
+  checkProgressSources(root, i18n !== undefined);
   const layout = layoutOf(root, languageChoices(i18n));
   const width = layout.width ?? DEFAULT_WIDTH;
   const height = layout.height ?? DEFAULT_HEIGHT;
@@ -336,6 +350,9 @@ class CocoaSurface : public Surface {
     choices_.push_back({item, popup, value, name});
   }
 
+  // A bar that shows the language download: hidden (and out of the layout) until one runs.
+  void bind_download(NSProgressIndicator* bar) { bars_.push_back(bar); }
+
   void set_state(StateId id, const Text& text) override {
     const std::size_t index = static_cast<std::size_t>(id);
     if (states_.size() <= index) states_.resize(index + 1);
@@ -371,6 +388,11 @@ class CocoaSurface : public Surface {
         [choice.item setState:choice.value == stored ? NSControlStateValueOn : NSControlStateValueOff];
       }
     }
+    const bool downloading = download_active();
+    for (NSProgressIndicator* bar : bars_) {
+      [bar setHidden:!downloading];
+      if (downloading) [bar setDoubleValue:download_progress("")];
+    }
   }
 
  private:
@@ -390,6 +412,7 @@ class CocoaSurface : public Surface {
 
   std::vector<Bound> bound_;
   std::vector<Choice> choices_;
+  std::vector<NSProgressIndicator*> bars_;
   std::vector<Text> states_;
   Text empty_;
 };

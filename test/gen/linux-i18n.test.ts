@@ -49,7 +49,7 @@ describe('given the i18n hello IR', () => {
 describe('given an i18n app without a language select', () => {
   it('when generating, then there is no dropdown but texts still follow the language', () => {
     const ir = helloI18nIr();
-    ir.root.children.pop();
+    ir.root.children = ir.root.children.filter((child) => child.kind !== 'select');
     const source = generateLinuxUi(ir, APP_ID, helloI18nOptions());
     assert.ok(!source.includes('gtk_drop_down_new'));
     assert.ok(source.includes('refresh_all'));

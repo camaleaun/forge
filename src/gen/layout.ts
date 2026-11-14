@@ -108,3 +108,14 @@ function build(node: Node, parent: LayoutNode | undefined, languages: [string, s
 export function layoutOf(root: Node, languages?: [string, string][]): LayoutNode {
   return build(root, undefined, languages);
 }
+
+// A bar that follows the language download needs the loader, which only apps with language packs have.
+export function checkProgressSources(root: Node, hasLanguagePacks: boolean): void {
+  const visit = (node: Node): void => {
+    if (node.progress?.source === 'language-download' && !hasLanguagePacks) {
+      throw new Error('<progress source="language-download"> needs at least one language pack');
+    }
+    node.children.forEach(visit);
+  };
+  visit(root);
+}

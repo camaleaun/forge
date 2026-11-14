@@ -22,6 +22,9 @@ class CocoaSurface : public Surface {
     choices_.push_back({item, popup, value, name});
   }
 
+  // A bar that shows the language download: hidden (and out of the layout) until one runs.
+  void bind_download(NSProgressIndicator* bar) { bars_.push_back(bar); }
+
   void set_state(StateId id, const Text& text) override {
     const std::size_t index = static_cast<std::size_t>(id);
     if (states_.size() <= index) states_.resize(index + 1);
@@ -57,6 +60,11 @@ class CocoaSurface : public Surface {
         [choice.item setState:choice.value == stored ? NSControlStateValueOn : NSControlStateValueOff];
       }
     }
+    const bool downloading = download_active();
+    for (NSProgressIndicator* bar : bars_) {
+      [bar setHidden:!downloading];
+      if (downloading) [bar setDoubleValue:download_progress("")];
+    }
   }
 
  private:
@@ -76,6 +84,7 @@ class CocoaSurface : public Surface {
 
   std::vector<Bound> bound_;
   std::vector<Choice> choices_;
+  std::vector<NSProgressIndicator*> bars_;
   std::vector<Text> states_;
   Text empty_;
 };
@@ -200,6 +209,15 @@ int forge_app::run_ui(int argc, char** argv) {
     add_language_item([w_select_3 menu], w_select_3, target, "pt-BR", Text("Português (Brasil)"));
     [w_window_0 addView:w_select_3 inGravity:NSStackViewGravityTop];
     [[[w_select_3 widthAnchor] constraintEqualToConstant:160] setActive:YES];
+
+    NSProgressIndicator* w_progress_4 = [[NSProgressIndicator alloc] init];
+    [w_progress_4 setStyle:NSProgressIndicatorStyleBar];
+    [w_progress_4 setIndeterminate:NO];
+    [w_progress_4 setMinValue:0];
+    [w_progress_4 setMaxValue:1];
+    g_surface.bind_download(w_progress_4);
+    [w_window_0 addView:w_progress_4 inGravity:NSStackViewGravityTop];
+    [[[w_progress_4 widthAnchor] constraintEqualToConstant:160] setActive:YES];
 
     g_surface.refresh_all();
     [window makeKeyAndOrderFront:nil];

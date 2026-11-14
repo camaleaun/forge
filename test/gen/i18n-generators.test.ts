@@ -125,7 +125,7 @@ describe('given the project of an i18n app', () => {
   });
   it('when the IR has no select node and no menu, then no language UI is emitted', () => {
     const ir = helloI18nIr();
-    ir.root.children.pop();
+    ir.root.children = ir.root.children.filter((child) => child.kind !== 'select');
     const source = generateMacosUi(ir, helloI18nOptions({ menu: false }));
     assert.ok(!source.includes('add_language_item(languageMenu') && !source.includes('NSPopUpButton* w_'));
   });

@@ -34,6 +34,8 @@ class GtkSurface : public Surface {
       if (known.widget == dropdown && index < known.choices.size()) return known.choices[index].value;
     return "";
   }
+  // A bar that shows the language download: hidden until one runs.
+  void add_download_bar(GtkWidget* bar) { bars_.push_back(bar); }
   // True while refresh_all() changes widgets: their change signals must not choose a language again.
   bool refreshing() const { return refreshing_ > 0; }
 
@@ -75,6 +77,11 @@ class GtkSurface : public Surface {
       for (std::size_t i = 0; i < dropdown.choices.size(); ++i)
         if (dropdown.choices[i].value == active) gtk_drop_down_set_selected(GTK_DROP_DOWN(dropdown.widget), static_cast<guint>(i));
     }
+    const bool downloading = download_active();
+    for (GtkWidget* bar : bars_) {
+      gtk_widget_set_visible(bar, downloading);
+      if (downloading) gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(bar), download_progress(""));
+    }
     --refreshing_;
   }
 
@@ -97,6 +104,7 @@ class GtkSurface : public Surface {
   };
   std::vector<Bound> bound_;
   std::vector<Dropdown> dropdowns_;
+  std::vector<GtkWidget*> bars_;
   std::vector<Text> states_;
   Text empty_;
   int refreshing_ = 0;
@@ -177,6 +185,13 @@ void activate(GtkApplication* app, gpointer) {
   gtk_widget_set_halign(w_select_3, GTK_ALIGN_START);
   gtk_widget_set_size_request(w_select_3, 160, -1);
   gtk_box_append(GTK_BOX(w_window_0), w_select_3);
+
+  GtkWidget* w_progress_4 = gtk_progress_bar_new();
+  gtk_widget_set_visible(w_progress_4, FALSE);
+  g_surface.add_download_bar(w_progress_4);
+  gtk_widget_set_halign(w_progress_4, GTK_ALIGN_START);
+  gtk_widget_set_size_request(w_progress_4, 160, -1);
+  gtk_box_append(GTK_BOX(w_window_0), w_progress_4);
 
   g_surface.refresh_all();
   gtk_window_present(GTK_WINDOW(window));
