@@ -24,12 +24,12 @@ export default function App() {
 }
 ```
 
-An app is `package.json` (name, version) + `App.tsx` + `App.css`. v1 targets macOS (plus a CLI in the same binary);
-Linux, Windows, web and mobile come later. Elements: `window`, `view`, `text`, `button`.
+An app is `package.json` (name, version) + `App.tsx` + `App.css`. v1 targets macOS (plus a CLI in the same binary); Linux (GTK 4, release candidate) is available with `--target linux`;
+Windows, web and mobile come later. Elements: `window`, `view`, `text`, `button`.
 
 ## Commands
 ```sh
-forge build [--project <dir>] [--target macos] --out <dir>   # generate C++/Objective-C++ + CMake
+forge build [--project <dir>] [--target macos|linux] --out <dir>   # generate C++/Objective-C++ + CMake
 forge start [--project <dir>] [--port 5170] [--local] [--qr] # live preview; reachable from your phone (token; q shows a QR), --local keeps it on this machine
 forge info  [--project <dir>] --field name|version
 forge manifest --dir <dir> --tag <tag> --repo <owner/repo>  # latest.json for the auto-updater
@@ -42,7 +42,7 @@ so you can open it on a phone on the same Wi-Fi. In a terminal: `o` opens it in 
 ## App icon
 
 - `icon.svg` next to `App.tsx`: a classic `AppIcon.icns`, rendered by forge's own SVG rasterizer.
-- `icon/` folder (`background.svg` and `foreground-1.svg`, `foreground-2.svg`, ... as flat square layers): a macOS 26 Liquid Glass icon. `forge build` writes `AppIcon.icon/`; the generated CMake compiles it with Xcode 26's `actool` when it finds one at configure time and otherwise falls back to the classic icon (or none). Details in the Packaging docs. A proposal for the hello world app is in `assets/hello-world-icon/`.
+- `icon/` folder (`background.svg` and `foreground-1.svg`, `foreground-2.svg`, ... as flat square layers): a macOS 26 Liquid Glass icon (ignored on Linux, which uses `icon.svg`). `forge build` writes `AppIcon.icon/`; the generated CMake compiles it with Xcode 26's `actool` when it finds one at configure time and otherwise falls back to the classic icon (or none). Details in the Packaging docs. A proposal for the hello world app is in `assets/hello-world-icon/`.
 
 ## How it works
 `App.tsx` is transformed by a small dependency-free JSX transformer (loaded with Node module hooks), `App.css` by a CSS-subset parser.

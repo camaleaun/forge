@@ -1,16 +1,16 @@
 ---
 title: Roadmap
-description: "What is planned for forge and not built yet: Linux and Windows packages, web and mobile, internationalization, Liquid Glass icons and more widgets."
+description: "What is planned for forge and not built yet: Windows packages, web and mobile, internationalization, Liquid Glass icons and more widgets."
 order: 7
 ---
 
 # Roadmap
 
-> Everything on this page is **planned** (or still being validated). forge v1 is macOS plus a CLI in the same binary.
+> Everything on this page is **planned** (or still being validated), except Linux, which is marked available. forge v1 is macOS plus a CLI in the same binary, and Linux is available as a release candidate (see below).
 
 ## Targets
 
-- **Linux:** `.deb`, `.rpm` and snap packages. <span class="badge">planned</span>
+- **Linux:** a GTK 4 app with `.deb`, `.rpm`, `.tar.gz`, snap and AppImage packages, for x86_64 and arm64. <span class="badge">available (release candidate)</span> It builds and tests on real Linux runners; see [Packaging and releases](../packaging-and-releases/#linux). Not on Linux yet: the optional Language menu bar item (the in-window language dropdown works) and the Liquid Glass icon.
 - **Windows:** MSI and EXE installers. <span class="badge">planned</span>
 - **Web:** a classic web output, with an installable PWA as an option. <span class="badge">planned</span>
 - **Mobile:** Android and iOS builds. <span class="badge">planned</span> A native "Forge Preview" shell app that loads a project from your network, in the spirit of Expo Go, is an idea and not designed yet.

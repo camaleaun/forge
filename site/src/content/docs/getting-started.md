@@ -6,12 +6,12 @@ order: 1
 
 # Getting started
 
-forge turns a small web-like project (TSX, CSS, TypeScript) into a native app. v1 targets **macOS** and a command-line interface in the same binary.
+forge turns a small web-like project (TSX, CSS, TypeScript) into a native app. v1 targets **macOS** and a command-line interface in the same binary. **Linux** (GTK 4) is available as a release candidate; see [Packaging and releases](../packaging-and-releases/#linux).
 
 ## Requirements
 
 - **Node 24, only to run forge.** forge runs its own `.ts` files directly with Node; there is no build step and no npm package to install. The apps you build are native binaries: they do not contain Node and the people who install them do not need it.
-- **To build the native app:** macOS, `cmake` and a C++/Objective-C++ toolchain (the Xcode Command Line Tools). Previewing with `forge start` works anywhere Node 24 runs.
+- **To build the native app:** macOS, `cmake` and a C++/Objective-C++ toolchain (the Xcode Command Line Tools). On Linux: `cmake`, a C++ compiler, `pkg-config` and `libgtk-4-dev`, and `forge build --target linux`. Node 24 is only needed to run forge itself; the apps you ship need no Node. Previewing with `forge start` works anywhere Node 24 runs.
 
 ## Install
 

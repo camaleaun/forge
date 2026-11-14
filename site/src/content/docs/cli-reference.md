@@ -7,7 +7,7 @@ order: 4
 # CLI reference
 
 ```text
-forge build [--project <dir>] [--target macos] --out <dir>
+forge build [--project <dir>] [--target macos|linux] --out <dir>
 forge start [--project <dir>] [--port 5170] [--local] [--qr]
 forge info  [--project <dir>] --field name|version
 forge manifest --dir <dir> --tag <tag> --repo <owner/repo>
@@ -17,7 +17,7 @@ forge manifest --dir <dir> --tag <tag> --repo <owner/repo>
 
 ## forge build
 
-Generates C++/Objective-C++ sources and a `CMakeLists.txt` for the app into `--out`. `--target` is `macos` (the only target today). Errors in `App.tsx`, `App.css` or `package.json` are printed as `file:line:column: message` and the command exits non-zero. If the project has an `icon.svg`, `AppIcon.icns` is generated and bundled; if it has an `icon/` folder of glass layers, `AppIcon.icon/` is written too and compiled by CMake when Xcode 26 is available; the styled DMG assets are generated as well. Then build with CMake:
+Generates C++/Objective-C++ sources and a `CMakeLists.txt` for the app into `--out`. `--target` is `macos` or `linux`. Errors in `App.tsx`, `App.css` or `package.json` are printed as `file:line:column: message` and the command exits non-zero. If the project has an `icon.svg`, `AppIcon.icns` is generated and bundled; if it has an `icon/` folder of glass layers, `AppIcon.icon/` is written too and compiled by CMake when Xcode 26 is available; the styled DMG assets are generated as well. Then build with CMake:
 
 ```sh
 forge build --out build/src
