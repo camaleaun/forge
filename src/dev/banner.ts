@@ -1,14 +1,14 @@
 import { qrMatrix } from '../qr/qr.ts';
 import { qrToTerminal } from '../qr/render.ts';
 
-export function formatLanBanner(urls: string[]): string {
+export function formatLanBanner(urls: string[], options: { qr?: boolean } = {}): string {
   const lines = [
     'WARNING: the dev server is exposed on the local network.',
     'Anyone on this network who has the URL below (it contains a secret token) can open it.',
     '',
     ...urls.map((url) => `  ${url}`),
   ];
-  if (urls.length > 0) {
+  if (urls.length > 0 && options.qr !== false) {
     try {
       lines.push('', qrToTerminal(qrMatrix(urls[0])));
     } catch {

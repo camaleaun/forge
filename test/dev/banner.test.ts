@@ -25,3 +25,12 @@ describe('given LAN urls', () => {
     assert.equal(banner.split('\n').filter((l) => /^[ █▀▄]{21,}$/.test(l)).length, 0);
   });
 });
+
+describe('given a banner without the QR code', () => {
+  it('when formatting with qr: false, then the warning and the URLs are printed but no QR block', () => {
+    const banner = formatLanBanner(['http://192.168.1.20:5170/?t=abc123abc123abc123abc1'], { qr: false });
+    assert.match(banner, /exposed on the local network/);
+    assert.match(banner, /http:\/\/192\.168\.1\.20:5170\/\?t=abc123/);
+    assert.ok(!banner.includes('█'), 'no QR block');
+  });
+});

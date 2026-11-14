@@ -7,7 +7,7 @@ const USAGE = `Usage:
   forge build [--project <dir>] [--target macos] --out <dir>
   forge manifest --dir <dir> --tag <tag> --repo <owner/repo>
   forge info [--project <dir>] --field name|version
-  forge start [--project <dir>] [--port 5170] [--local]`;
+  forge start [--project <dir>] [--port 5170] [--local] [--qr]`;
 
 function option(args: string[], name: string, fallback?: string): string | undefined {
   const index = args.indexOf(name);
@@ -44,7 +44,7 @@ if (command === 'info') {
 if (command === 'start') {
   const port = Number(option(args, '--port', '5170'));
   if (!Number.isInteger(port) || port < 0 || port > 65535) usage();
-  await start({ project: option(args, '--project', '.')!, port, local: args.includes('--local') });
+  await start({ project: option(args, '--project', '.')!, port, local: args.includes('--local'), qr: args.includes('--qr') });
 } else {
   usage();
 }

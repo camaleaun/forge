@@ -8,7 +8,7 @@ import { buildProjectIr } from '../project/build.ts';
 import { handleKey } from './keys.ts';
 import { openCommand } from './open.ts';
 
-export type StartOptions = { project: string; port: number; local: boolean };
+export type StartOptions = { project: string; port: number; local: boolean; qr: boolean };
 
 const KEYS_HINT = 'Keys: o open in browser | q show the QR code | h help | Ctrl+C quit';
 
@@ -16,29 +16,32 @@ const KEYS_HINT = 'Keys: o open in browser | q show the QR code | h help | Ctrl+
 // By default the preview is reachable from the local network (token required) so a phone can open it.
 export async function start(options: StartOptions): Promise<void> {
   const projectDir = resolve(options.project);
+  // Signal handlers first: once anything is printed, Ctrl+C / SIGTERM must always exit cleanly with code 0.
+  let closeServer: () => Promise<void> = async () => {};
+  const stop = async () => {
+    await closeServer();
+    process.exit(0);
+  };
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+
   const server = await createDevServer({
     projectDir,
     port: options.port,
     lan: !options.local,
     load: () => buildProjectIr(projectDir),
   });
+  closeServer = () => server.close();
   const localUrl = server.token ? `${server.url}?t=${server.token}` : server.url;
   const phoneUrl = server.lanUrls[0] ?? localUrl;
 
   console.log(`forge start: ${localUrl}`);
   if (!options.local) {
     console.log(server.lanUrls.length > 0
-      ? formatLanBanner(server.lanUrls)
+      ? formatLanBanner(server.lanUrls, { qr: options.qr })
       : 'The server is reachable on the local network, but no network interface was found: it is only reachable from this machine (no network).');
   }
   console.log('Press Ctrl+C to stop.');
-
-  const stop = async () => {
-    await server.close();
-    process.exit(0);
-  };
-  process.on('SIGINT', stop);
-  process.on('SIGTERM', stop);
 
   if (process.stdin.isTTY) {
     console.log(KEYS_HINT);

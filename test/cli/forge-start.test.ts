@@ -61,6 +61,27 @@ describe('given the hello app', () => {
     }
   });
 
+  it('when running "forge start" with no flags, then the QR code is not printed on its own (it is shown with the q key)', async () => {
+    const run = startForge(['--project', fixture, '--port', '0'], /Press Ctrl\+C to stop\./);
+    try {
+      await run.found;
+      assert.ok(!run.output().includes('█'), 'the QR code must not appear until q is pressed');
+    } finally {
+      assert.equal(await run.stop(), 0);
+    }
+  });
+
+  it('when running "forge start --qr" and a network exists, then the QR code is printed at startup', async () => {
+    const run = startForge(['--project', fixture, '--port', '0', '--qr'], /Press Ctrl\+C to stop\./);
+    try {
+      await run.found;
+      const hasNetwork = /http:\/\/\d+\.\d+\.\d+\.\d+:\d+\/\?t=/.test(run.output());
+      assert.equal(run.output().includes('█'), hasNetwork);
+    } finally {
+      assert.equal(await run.stop(), 0);
+    }
+  });
+
   it('when running "forge start --local", then the server is local only: no token, no network warning', async () => {
     const run = startForge(['--project', fixture, '--port', '0', '--local'], /http:\/\/127\.0\.0\.1:(\d+)\//);
     try {
@@ -84,6 +105,17 @@ describe('given a project that does not build', () => {
       assert.ok(html.includes('package.json: cannot read it'));
     } finally {
       assert.equal(await run.stop(), 0);
+    }
+  });
+});
+
+describe('given a signal that arrives right after the first output', () => {
+  it('when forge start is stopped immediately, then it always exits cleanly with code 0 (the handlers are installed before anything is printed)', async () => {
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const child = spawn(process.execPath, ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', join(root, 'src/cli/forge.ts'), 'start', '--project', fixture, '--port', '0', '--local'], { stdio: ['ignore', 'pipe', 'pipe'] });
+      const exited = new Promise<{ code: number | null; signal: string | null }>((resolve) => child.on('exit', (code, signal) => resolve({ code, signal })));
+      child.stdout.once('data', () => child.kill('SIGTERM'));
+      assert.deepEqual(await exited, { code: 0, signal: null }, `attempt ${attempt}`);
     }
   });
 });
