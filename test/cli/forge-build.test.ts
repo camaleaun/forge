@@ -39,7 +39,7 @@ describe('given a project directory with forge.json and actions.ts', () => {
     for (const args of [[], ['build']]) {
       const result = forge(...args);
       assert.equal(result.status, 2);
-      assert.match(result.stderr, /Usage: forge build/);
+      assert.match(result.stderr, /Usage:\n\s+forge build/);
     }
   });
 });
