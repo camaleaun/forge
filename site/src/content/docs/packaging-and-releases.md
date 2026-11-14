@@ -117,18 +117,26 @@ Tags with a hyphen (such as `v0.1.0-rc.1`) are published as pre-releases. The he
 
 ## forge-action
 
-[forge-action](https://github.com/camaleaun/forge-action) packages those steps as GitHub Actions (macOS runners only for now):
+[forge-action](https://github.com/camaleaun/forge-action) packages those steps as GitHub Actions for macOS and Linux. A matrix builds every platform in parallel (one artifact per job, named `dist-<platform>`) and one `publish` job merges them, writes `latest.json` and creates the release:
 
 ```yaml
 jobs:
   build:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - { os: macos-latest,     target: macos, artifact: dist-macos }
+          - { os: ubuntu-24.04,     target: linux, artifact: dist-linux-x86_64 }
+          - { os: ubuntu-24.04-arm, target: linux, artifact: dist-linux-arm64 }
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: camaleaun/forge-action@v1
+      - uses: camaleaun/forge-action@v1.2.1
         with:
           project-dir: .
           forge-ref: trunk
+          target: ${{ matrix.target }}
+          artifact-name: ${{ matrix.artifact }}
 
   publish:
     needs: build
@@ -136,7 +144,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: camaleaun/forge-action/publish@v1
+      - uses: camaleaun/forge-action/publish@v1.2.1
+        with:
+          pattern: dist-*
 ```
 
-Pass the signing secrets as the optional inputs (`macos-certificate-p12`, `macos-certificate-password`, `macos-signing-identity`, `notary-key-p8`, `notary-key-id`, `notary-issuer-id`) to sign and notarize. Check the forge-action README for the current tags and inputs.
+- `target: linux` builds the `.deb`, `.rpm`, `.tar.gz`, `.AppImage` and (unless `snap: 'false'`) the `.snap`, on the Ubuntu runner of each architecture; `target: macos` builds the `.dmg` and `.zip`.
+- The publish job needs no checkout of the app repository: it merges the artifacts that match `pattern` and creates the release in the current repository.
+- Pass the signing secrets as the optional inputs (`macos-certificate-p12`, `macos-certificate-password`, `macos-signing-identity`, `notary-key-p8`, `notary-key-id`, `notary-issuer-id`) to sign and notarize on macOS. Without them the app is signed ad-hoc.
+- Pin a version tag such as `@v1.2.1` for repeatable builds (`@v1` moves to the latest 1.x). The hello world repository has a complete example in its `.github/workflows/release.yml`, with a job that runs the tests and checks the tag first. Check the forge-action README for the current tags and inputs.
