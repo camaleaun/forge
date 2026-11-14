@@ -197,7 +197,7 @@ export function compilePlural(formula: string): (n: number) => number {
 
 const OTHER_SLAVIC = 'n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2';
 
-// Formulas follow the gettext / GlotPress (WordPress) plural-forms headers.
+// Formulas follow the standard gettext plural-forms headers.
 const TABLE: Record<string, { nplurals: number; formula: string }> = {
   en: { nplurals: 2, formula: 'n != 1' },
   pt: { nplurals: 2, formula: 'n > 1' },

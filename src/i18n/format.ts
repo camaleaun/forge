@@ -1,4 +1,4 @@
-// PHP/WordPress printf subset used by sprintf(): %s %d %1$s %2$d %%.
+// printf subset used by sprintf(): %s %d %1$s %2$d %%.
 // It never throws: a specifier it cannot fill (too few arguments, unknown conversion) is left as written.
 const SPECIFIER = /%(?:(\d{1,2})\$)?([sd%])/g;
 

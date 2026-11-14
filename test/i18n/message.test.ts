@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { placeholderCount } from '../../src/i18n/format.ts';
 import { Message, __, _n, _nx, _x, sprintf } from '../../src/i18n/message.ts';
 
-describe('given the WordPress translation functions', () => {
+describe('given the translation functions', () => {
   it('when calling __(), then the message carries the English text only', () => {
     const message = __('Hello, world!');
     assert.ok(message instanceof Message);

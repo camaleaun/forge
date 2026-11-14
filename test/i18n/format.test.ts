@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { formatPrintf } from '../../src/i18n/format.ts';
 
-describe('given a PHP/WordPress style pattern', () => {
+describe('given a printf style pattern', () => {
   it('when it has %s and %d, then the arguments fill them in order', () => {
     assert.equal(formatPrintf('Hello, %s! You have %d files.', ['world', 3]), 'Hello, world! You have 3 files.');
   });

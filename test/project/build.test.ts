@@ -117,7 +117,7 @@ describe('given an app with an icon.svg next to App.tsx', () => {
     }));
 });
 
-describe('given an app that imports the WordPress functions from forge and has an i18n folder', () => {
+describe('given an app that imports the translation functions from forge and has an i18n folder', () => {
   it('when building the project IR, then __() texts and the literal JSX text become messages', () =>
     withCopy(async (dir) => {
       const source = readFileSync(join(dir, 'App.tsx'), 'utf8')
