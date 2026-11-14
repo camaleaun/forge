@@ -22,3 +22,58 @@ jobs:
           node-version: 24
       - name: Test
         run: npm test
+
+  # Builds for real on Linux: the native suites that skip elsewhere run here (GTK 4, libsoup 3, cmake, packages),
+  # and the sample app's window is started under a virtual display so the result can be looked at.
+  linux-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install the build and check tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake g++ pkg-config libgtk-4-dev libsoup-3.0-dev glib-networking \
+            rpm squashfs-tools desktop-file-utils appstream xvfb xdotool imagemagick dbus-x11
+      - name: Test
+        run: npm test
+      - name: Build the sample app
+        run: |
+          bin/forge build --target linux --project test/fixtures/hello-app --out "$RUNNER_TEMP/hello-src"
+          cmake -S "$RUNNER_TEMP/hello-src" -B "$RUNNER_TEMP/hello-build" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/hello-build"
+          binary="$(find "$RUNNER_TEMP/hello-build" -maxdepth 1 -type f -name hello -perm -u+x)"
+          echo "binary=$binary" >> "$GITHUB_ENV"
+          ls -l "$binary"
+          test "$("$binary" --greet)" = "Hello, world!"
+          "$binary" --version
+      - name: Run the window under a virtual display
+        run: |
+          mkdir -p "$RUNNER_TEMP/shots"
+          cat > "$RUNNER_TEMP/gui.sh" <<'SCRIPT'
+          set -eu
+          export GDK_BACKEND=x11
+          "$binary" &
+          app=$!
+          window="$(xdotool search --sync --name 'Hello, forge' | head -n 1)"
+          sleep 1
+          import -window root "$RUNNER_TEMP/shots/before.png"
+          # The button sits under the message; a miss is not a failure, the screenshots are for reading.
+          xdotool mousemove --window "$window" 70 70 click 1 || true
+          sleep 1
+          import -window root "$RUNNER_TEMP/shots/after.png"
+          kill "$app"
+          SCRIPT
+          xvfb-run -a -s '-screen 0 1280x800x24' dbus-run-session -- bash "$RUNNER_TEMP/gui.sh"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-window-${{ matrix.os }}
+          path: ${{ runner.temp }}/shots/*.png
+          if-no-files-found: warn
