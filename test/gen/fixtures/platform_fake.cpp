@@ -1,5 +1,6 @@
 // A fake platform adapter plus a scripted driver: it links against the portable loader (i18n_common.cpp)
 // and proves its logic on any machine. Commands come from stdin, one per line; results go to stdout.
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <dirent.h>
