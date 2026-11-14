@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { Ir } from '../ir/types.ts';
+import { builtinEntries } from './builtin.ts';
 import { loadCatalog } from './catalog.ts';
 import type { Catalog } from './catalog.ts';
 import { MAX_LANG_BYTES, decodeUtf8, encodeLang } from './lang.ts';
@@ -99,7 +100,10 @@ export function loadProjectI18n(projectDir: string, ir: Ir, pkg: PackageInfo): P
   const packs: ProjectPack[] = [];
   for (const { tag, file } of catalog.locales) {
     try {
-      const text = encodeLang({ tag, app: pkg.name, version: pkg.version, entries: file.entries });
+      // forge's own texts (--help) come translated; anything the translator wrote wins.
+      const written = new Set(file.entries.map((e) => `${e.context ?? ''}\0${e.text}`));
+      const own = builtinEntries(tag).filter((e) => !written.has(`${e.context ?? ''}\0${e.text}`));
+      const text = encodeLang({ tag, app: pkg.name, version: pkg.version, entries: [...file.entries, ...own] });
       const bytes = Buffer.from(text, 'utf8');
       packs.push({ tag, file: `${pkg.name}-${pkg.version}-${tag}.lang`, text, sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.length });
     } catch (error) {

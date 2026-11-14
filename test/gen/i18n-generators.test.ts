@@ -119,7 +119,7 @@ describe('given an IR without translatable messages, or no packs', () => {
 describe('given the project of an i18n app', () => {
   it('when generating it, then messages.cpp and the i18n CMake sources are included', () => {
     const files = generateProject(helloI18nIr(), 'macos', { i18n: helloI18nOptions() });
-    assert.ok((files.get('messages.cpp') as string).includes('MSG_COUNT = 6'));
+    assert.ok((files.get('messages.cpp') as string).includes('MSG_COUNT = 8'));
     assert.match(files.get('CMakeLists.txt') as string, /messages\.cpp\n {2}i18n\.cpp\n {2}i18n_macos\.mm\)/);
     assert.ok((files.get('ui_macos.mm') as string).includes('Text::msg(2)'));
   });
@@ -136,5 +136,16 @@ describe('given the macOS language loader source', () => {
     const source = readFileSync(join(RUNTIME_DIR, 'i18n_macos.mm'), 'utf8');
     assert.ok(!source.includes('initWithSuiteName'), 'initWithSuiteName with the own bundle id does not work');
     assert.ok(source.includes('standardUserDefaults'));
+  });
+});
+
+describe('given an i18n project', () => {
+  const files = generateProject(helloI18nIr(), 'macos', { i18n: helloI18nOptions() });
+  it('when generating, then forge\'s own help texts are messages the language pack can translate', () => {
+    assert.match(String(files.get('messages.cpp')), /"Show this help"/);
+    assert.match(String(files.get('messages.cpp')), /"Print the version"/);
+    const router = String(files.get('cli_router.cpp'));
+    assert.match(router, /--version  ", Text::msg\(\d+\)\)/);
+    assert.match(router, /--help     ", Text::msg\(\d+\)\)/);
   });
 });

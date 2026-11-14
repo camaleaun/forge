@@ -21,7 +21,10 @@ function helpLines(ir: Ir): string[] {
 
 // In i18n mode the option descriptions are rendered at run time, in the active language.
 function i18nHelp(ir: Ir): string {
-  const options = [...ir.commands.map((command) => ({ flag: command.flag, text: textExpr(ir, command.description) })), ...BUILTINS.map((b) => ({ flag: b.flag, text: `Text(${cppString(b.description)})` }))];
+  // forge's own texts are messages when the table has them (generateProject adds them), so packs translate them.
+  const builtin = (description: string): string =>
+    ir.messages.some((m) => m.text === description && m.context === undefined) ? textExpr(ir, { kind: 'message', text: description }) : `Text(${cppString(description)})`;
+  const options = [...ir.commands.map((command) => ({ flag: command.flag, text: textExpr(ir, command.description) })), ...BUILTINS.map((b) => ({ flag: b.flag, text: builtin(b.description) }))];
   const width = Math.max(...options.map((option) => option.flag.length));
   return [
     '  std::puts(' + cppString(`Usage: ${ir.app.name} [option]`) + ');',

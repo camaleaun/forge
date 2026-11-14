@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { renderDmgBackground } from '../dmg/background.ts';
 import { buildIcns } from '../icon/icns.ts';
 import { encodePng } from '../dmg/png.ts';
+import { withBuiltinMessages } from '../i18n/builtin.ts';
 import type { Ir } from '../ir/types.ts';
 import { generateActionsCpp } from './actions-cpp.ts';
 import { generateAppHeader } from './app-header.ts';
@@ -34,7 +35,10 @@ function dmgBackground(scale: 1 | 2): Uint8Array {
 }
 
 // Returns relative path -> file content for the generated (not runtime) files.
-export function generateProject(ir: Ir, target: string, options: { iconSvg?: string; i18n?: I18nGenOptions } = {}): ProjectFiles {
+export function generateProject(source: Ir, target: string, options: { iconSvg?: string; i18n?: I18nGenOptions } = {}): ProjectFiles {
+  const i18nMode = hasPacks(options.i18n);
+  // forge's own help texts become messages in i18n mode so the packs can translate them.
+  const ir = i18nMode ? withBuiltinMessages(source) : source;
   if (target !== 'macos') throw new Error(`unsupported target "${target}" (supported: ${TARGETS.join(', ')})`);
   if (ir.app.icon && options.iconSvg === undefined) throw new Error('the app has an icon but no icon.svg source was given');
   const i18n = hasPacks(options.i18n) ? options.i18n : undefined;

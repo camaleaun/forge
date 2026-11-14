@@ -48,7 +48,7 @@ describe('given languages/pt-BR.lang and a GitHub repository', () => {
     assert.ok(p.text.startsWith('forge-lang 1 pt-BR hello 0.2.0\nplural-forms: nplurals=2; plural=(n > 1);\n'));
     assert.equal(p.sha256, sha(p.text));
     assert.equal(p.size, Buffer.byteLength(p.text));
-    assert.equal(parseLang(p.text, 'x').entries.length, 4);
+    assert.equal(parseLang(p.text, 'x').entries.length, 6);
     assert.equal(r.baseUrl, 'https://github.com/camaleaun/forge-hello-world/releases/download/v0.2.0/');
   });
 
@@ -58,6 +58,15 @@ describe('given languages/pt-BR.lang and a GitHub repository', () => {
     const b = loadProjectI18n(project({ 'pt_BR.lang': shuffled }), ir, pkg);
     assert.deepEqual(b.errors, []);
     assert.equal(b.packs[0].text, a.packs[0].text);
+  });
+
+  it('when building the pack, then forge\'s own texts are translated in it, and the translator can override them', () => {
+    const a = loadProjectI18n(project({ 'pt-BR.lang': PT }), ir, pkg);
+    const entries = parseLang(a.packs[0].text, 'x').entries;
+    assert.deepEqual(entries.find((e) => e.text === 'Show this help')?.forms, ['Mostra esta ajuda']);
+    assert.deepEqual(a.warnings, []);
+    const b = loadProjectI18n(project({ 'pt-BR.lang': 'Show this help\tAjuda\n' + PT }), ir, pkg);
+    assert.deepEqual(parseLang(b.packs[0].text, 'x').entries.find((e) => e.text === 'Show this help')?.forms, ['Ajuda']);
   });
 
   it('when a phrase is missing, then it is a warning and the pack is still made', () => {
