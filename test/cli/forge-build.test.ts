@@ -71,6 +71,33 @@ describe('given an app with package.json, App.tsx and App.css', () => {
   });
 });
 
+describe('given an app with an icon.svg', () => {
+  it('when running forge build, then AppIcon.icns is written next to the generated sources and CMake bundles it', () => {
+    const target = mkdtempSync(join(tmpdir(), 'forge-icon-out-'));
+    withProjectCopy((dir) => {
+      writeFileSync(join(dir, 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#09f"/></svg>');
+    }, (dir) => {
+      const result = forge('build', '--project', dir, '--out', target);
+      assert.equal(result.status, 0, result.stderr);
+      assert.ok(readdirSync(target).includes('AppIcon.icns'));
+      assert.equal(readFileSync(join(target, 'AppIcon.icns')).subarray(0, 4).toString('latin1'), 'icns');
+      assert.ok(readFileSync(join(target, 'CMakeLists.txt'), 'utf8').includes('MACOSX_BUNDLE_ICON_FILE AppIcon'));
+    });
+    rmSync(target, { recursive: true, force: true });
+  });
+
+  it('when icon.svg is invalid, then forge build exits 1 with icon.svg:line:column and writes nothing', () => {
+    const target = mkdtempSync(join(tmpdir(), 'forge-icon-bad-'));
+    withProjectCopy((dir) => writeFileSync(join(dir, 'icon.svg'), '<svg viewBox="0 0 10 10">\n<image/></svg>'), (dir) => {
+      const result = forge('build', '--project', dir, '--out', target);
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /error: icon\.svg:2:1: unsupported element <image>/);
+      assert.deepEqual(readdirSync(target), []);
+    });
+    rmSync(target, { recursive: true, force: true });
+  });
+});
+
 describe('given an app with several mistakes', () => {
   it('when running forge build, then every error is listed on stderr with its position, the exit code is 1 and nothing is written', () => {
     const target = mkdtempSync(join(tmpdir(), 'forge-bad-out-'));

@@ -56,3 +56,25 @@ describe('given generated files in nested folders', () => {
     }
   });
 });
+
+const ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" rx="2" fill="#f60"/></svg>';
+
+describe('given an IR with an app icon', () => {
+  it('when generating with the SVG source, then AppIcon.icns is included and is a real icns file', () => {
+    const ir = helloIr();
+    ir.app.icon = 'AppIcon.icns';
+    const icns = generateProject(ir, 'macos', { iconSvg: ICON_SVG }).get('AppIcon.icns') as Uint8Array;
+    assert.equal(String.fromCharCode(...icns.slice(0, 4)), 'icns');
+    assert.equal(new DataView(icns.buffer, icns.byteOffset).getUint32(4), icns.length);
+  });
+
+  it('when the SVG source is missing, then generating fails with a clear message', () => {
+    const ir = helloIr();
+    ir.app.icon = 'AppIcon.icns';
+    assert.throws(() => generateProject(ir, 'macos'), { message: 'the app has an icon but no icon.svg source was given' });
+  });
+
+  it('when the IR has no icon, then no AppIcon.icns is generated', () => {
+    assert.ok(!generateProject(helloIr(), 'macos').has('AppIcon.icns'));
+  });
+});

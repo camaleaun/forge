@@ -22,3 +22,20 @@ describe('given version 0.1.0-rc.1', () => {
     assert.ok(cmake.includes('set(CPACK_PACKAGE_VERSION "0.1.0-rc.1")'));
   });
 });
+
+describe('given an IR with an app icon', () => {
+  const ir = helloIr();
+  ir.app.icon = 'AppIcon.icns';
+  const cmake = generateCmake(ir);
+
+  it('when generating, then AppIcon.icns is compiled into the bundle Resources and named in Info.plist', () => {
+    assert.ok(cmake.includes('  AppIcon.icns)'), 'listed as a source of the executable');
+    assert.ok(cmake.includes('set_source_files_properties(AppIcon.icns PROPERTIES MACOSX_PACKAGE_LOCATION Resources)'));
+    assert.ok(cmake.includes('MACOSX_BUNDLE_ICON_FILE AppIcon'));
+  });
+
+  it('when the IR has no icon, then none of that appears', () => {
+    const without = generateCmake(helloIr());
+    assert.ok(!without.includes('AppIcon') && !without.includes('MACOSX_PACKAGE_LOCATION'));
+  });
+});

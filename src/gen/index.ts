@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { renderDmgBackground } from '../dmg/background.ts';
+import { buildIcns } from '../icon/icns.ts';
 import { encodePng } from '../dmg/png.ts';
 import type { Ir } from '../ir/types.ts';
 import { generateActionsCpp } from './actions-cpp.ts';
@@ -23,9 +24,10 @@ function dmgBackground(scale: 1 | 2): Uint8Array {
 }
 
 // Returns relative path -> file content for the generated (not runtime) files.
-export function generateProject(ir: Ir, target: string): ProjectFiles {
+export function generateProject(ir: Ir, target: string, options: { iconSvg?: string } = {}): ProjectFiles {
   if (target !== 'macos') throw new Error(`unsupported target "${target}" (supported: ${TARGETS.join(', ')})`);
-  return new Map([
+  if (ir.app.icon && options.iconSvg === undefined) throw new Error('the app has an icon but no icon.svg source was given');
+  const files: ProjectFiles = new Map([
     ['forge_app.hpp', generateAppHeader(ir)],
     ['actions.cpp', generateActionsCpp(ir)],
     ['cli_router.cpp', generateCliRouter(ir)],
@@ -35,6 +37,8 @@ export function generateProject(ir: Ir, target: string): ProjectFiles {
     ['dmg/background.png', dmgBackground(1)],
     ['dmg/background@2x.png', dmgBackground(2)],
   ]);
+  if (ir.app.icon && options.iconSvg !== undefined) files.set(ir.app.icon, buildIcns(options.iconSvg));
+  return files;
 }
 
 // Writes the files under `dir`, creating nested folders.
