@@ -127,3 +127,90 @@ describe('given language packs next to the zips', () => {
     );
   });
 });
+
+describe('given the Linux portable tar.gz', () => {
+  const rc = { version: '0.2.0-rc.1', repo: 'camaleaun/forge-hello-world', tag: 'v0.2.0-rc.1' };
+  const base = 'https://github.com/camaleaun/forge-hello-world/releases/download/v0.2.0-rc.1/';
+
+  it('when building the manifest, then linux-x86_64 and linux-arm64 platforms come from .tar.gz files', () => {
+    const manifest = buildManifest(rc, [
+      { name: 'hello-0.2.0-rc.1-linux-x86_64.tar.gz', sha256: 'aa', size: 10 },
+      { name: 'hello-0.2.0-rc.1-linux-arm64.tar.gz', sha256: 'bb', size: 11 },
+      { name: 'hello-0.2.0-rc.1-darwin-arm64.zip', sha256: 'cc', size: 12 },
+    ]);
+    assert.deepEqual(manifest.platforms['linux-x86_64'], { url: `${base}hello-0.2.0-rc.1-linux-x86_64.tar.gz`, sha256: 'aa', size: 10 });
+    assert.deepEqual(manifest.platforms['linux-arm64'], { url: `${base}hello-0.2.0-rc.1-linux-arm64.tar.gz`, sha256: 'bb', size: 11 });
+    assert.deepEqual(Object.keys(manifest.platforms).sort(), ['darwin-arm64', 'linux-arm64', 'linux-x86_64']);
+  });
+  it('when a zip and a tar.gz claim the same platform, then it fails naming both', () => {
+    assert.throws(
+      () => buildManifest(options, [
+        { name: 'hello-0.1.0-linux-x64.zip', sha256: 'aa', size: 1 },
+        { name: 'hello-0.1.0-linux-x64.tar.gz', sha256: 'bb', size: 1 },
+      ]),
+      { message: 'asset "hello-0.1.0-linux-x64.tar.gz": platform linux-x64 is already provided by hello-0.1.0-linux-x64.zip' },
+    );
+  });
+  it('when a tar.gz name does not follow <app>-<version>-<os>-<arch>.tar.gz, then it fails naming the file', () => {
+    assert.throws(
+      () => buildManifest(options, [{ name: 'hello.tar.gz', sha256: 'aa', size: 1 }]),
+      { message: 'asset "hello.tar.gz": name must be <app>-<version>-<os>-<arch>.tar.gz' },
+    );
+  });
+  it('when the tar.gz is for another version, then it fails', () => {
+    assert.throws(
+      () => buildManifest(options, [{ name: 'hello-0.2.0-linux-x64.tar.gz', sha256: 'aa', size: 1 }]),
+      { message: 'asset "hello-0.2.0-linux-x64.tar.gz": version 0.2.0 does not match release version 0.1.0' },
+    );
+  });
+});
+
+describe('given installable packages next to the portable files', () => {
+  const rc = { version: '0.2.0-rc.1', repo: 'camaleaun/forge-hello-world', tag: 'v0.2.0-rc.1' };
+  const base = 'https://github.com/camaleaun/forge-hello-world/releases/download/v0.2.0-rc.1/';
+  const tarball = { name: 'hello-0.2.0-rc.1-linux-x86_64.tar.gz', sha256: 'aa', size: 10 };
+
+  it('when there are deb, rpm, snap and AppImage files, then packages lists them per platform with url, sha256 and size', () => {
+    const manifest = buildManifest(rc, [
+      tarball,
+      { name: 'hello-0.2.0-rc.1-linux-x86_64.deb', sha256: 'd1', size: 1 },
+      { name: 'hello-0.2.0-rc.1-linux-x86_64.rpm', sha256: 'd2', size: 2 },
+      { name: 'hello-0.2.0-rc.1-linux-x86_64.snap', sha256: 'd3', size: 3 },
+      { name: 'hello-0.2.0-rc.1-linux-x86_64.AppImage', sha256: 'd4', size: 4 },
+      { name: 'hello-0.2.0-rc.1-darwin-arm64.dmg', sha256: 'd5', size: 5 },
+    ]);
+    assert.deepEqual(manifest.packages, {
+      'linux-x86_64': {
+        deb: { url: `${base}hello-0.2.0-rc.1-linux-x86_64.deb`, sha256: 'd1', size: 1 },
+        rpm: { url: `${base}hello-0.2.0-rc.1-linux-x86_64.rpm`, sha256: 'd2', size: 2 },
+        snap: { url: `${base}hello-0.2.0-rc.1-linux-x86_64.snap`, sha256: 'd3', size: 3 },
+        appimage: { url: `${base}hello-0.2.0-rc.1-linux-x86_64.AppImage`, sha256: 'd4', size: 4 },
+      },
+      'darwin-arm64': { dmg: { url: `${base}hello-0.2.0-rc.1-darwin-arm64.dmg`, sha256: 'd5', size: 5 } },
+    });
+  });
+  it('when there are no packages, then the packages key is absent and a zip-only manifest is unchanged', () => {
+    const manifest = buildManifest(options, [{ name: 'hello-0.1.0-darwin-arm64.zip', sha256: 'aa', size: 10 }]);
+    assert.ok(!('packages' in manifest));
+    assert.deepEqual(Object.keys(manifest), ['version', 'platforms']);
+  });
+  it('when an installer has no <os>-<arch> in its name (the macOS CPack name), then it is ignored', () => {
+    const manifest = buildManifest(options, [{ name: 'hello-0.1.0-Darwin.dmg', sha256: 'cc', size: 5 }]);
+    assert.ok(!('packages' in manifest));
+  });
+  it('when a package is for another version, then it fails naming the file', () => {
+    assert.throws(
+      () => buildManifest(rc, [{ name: 'hello-0.1.0-linux-x86_64.deb', sha256: 'aa', size: 1 }]),
+      { message: 'asset "hello-0.1.0-linux-x86_64.deb": version 0.1.0 does not match release version 0.2.0-rc.1' },
+    );
+  });
+  it('when two files of the same kind claim one platform, then it fails', () => {
+    assert.throws(
+      () => buildManifest(rc, [
+        { name: 'hello-0.2.0-rc.1-linux-x86_64.deb', sha256: 'aa', size: 1 },
+        { name: 'other-0.2.0-rc.1-linux-x86_64.deb', sha256: 'bb', size: 1 },
+      ]),
+      { message: 'asset "other-0.2.0-rc.1-linux-x86_64.deb": linux-x86_64 deb is already provided by hello-0.2.0-rc.1-linux-x86_64.deb' },
+    );
+  });
+});

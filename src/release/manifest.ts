@@ -1,14 +1,20 @@
 export type Asset = { name: string; sha256: string; size: number };
+type File = { url: string; sha256: string; size: number };
+export type PackageKind = 'deb' | 'rpm' | 'snap' | 'appimage' | 'dmg';
 export type ManifestOptions = { version: string; repo: string; tag: string };
 export type Manifest = {
   version: string;
-  platforms: Record<string, { url: string; sha256: string; size: number }>;
+  platforms: Record<string, File>;
+  // Present only when the release has installable packages (.deb, .rpm, .snap, .AppImage, .dmg), per platform.
+  packages?: Record<string, Partial<Record<PackageKind, File>>>;
   // Present only when the release has language packs (<app>-<version>-<tag>.lang).
   languages?: Record<string, { url: string; sha256: string; size: number }>;
 };
 
-// <app>-<version>-<os>-<arch>.zip
-const PORTABLE_ZIP = /^.+?-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)-([a-z0-9_]+-[a-z0-9_]+)\.zip$/;
+// <app>-<version>-<os>-<arch>.zip (macOS) or .tar.gz (Linux)
+const PORTABLE = /^.+?-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)-([a-z0-9_]+-[a-z0-9_]+)\.(zip|tar\.gz)$/;
+// <app>-<version>-<os>-<arch>.<deb|rpm|snap|AppImage|dmg>
+const PACKAGE = /^.+?-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)-([a-z0-9_]+-[a-z0-9_]+)\.(deb|rpm|snap|AppImage|dmg)$/;
 
 // <app>-<version>-<tag>.lang; the tag is a BCP 47 looking suffix (pt-BR, zh-Hant-TW).
 const TAG = '[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*';
@@ -28,7 +34,10 @@ function languageOf(name: string, version: string): string {
 export function buildManifest(options: ManifestOptions, assets: Asset[]): Manifest {
   const platforms: Manifest['platforms'] = {};
   const languages: NonNullable<Manifest['languages']> = {};
+  const packages: NonNullable<Manifest['packages']> = {};
   const providers: Record<string, string> = {};
+  const portableNames: Record<string, string> = {};
+  const packageNames: Record<string, string> = {};
   for (const asset of assets) {
     const url = `https://github.com/${options.repo}/releases/download/${options.tag}/${asset.name}`;
     if (asset.name.endsWith('.lang')) {
@@ -38,14 +47,41 @@ export function buildManifest(options: ManifestOptions, assets: Asset[]): Manife
       languages[tag] = { url, sha256: asset.sha256, size: asset.size };
       continue;
     }
-    if (!asset.name.endsWith('.zip')) continue;
-    const match = PORTABLE_ZIP.exec(asset.name);
-    if (!match) throw new Error(`asset "${asset.name}": name must be <app>-<version>-<os>-<arch>.zip`);
+    const portable = /\.(zip|tar\.gz)$/.exec(asset.name)?.[1];
+    if (portable !== undefined) {
+      const match = PORTABLE.exec(asset.name);
+      if (!match || match[3] !== portable) throw new Error(`asset "${asset.name}": name must be <app>-<version>-<os>-<arch>.${portable}`);
+      const [, version, platform] = match;
+      if (version !== options.version) {
+        throw new Error(`asset "${asset.name}": version ${version} does not match release version ${options.version}`);
+      }
+      if (portableNames[platform] !== undefined) {
+        throw new Error(`asset "${asset.name}": platform ${platform} is already provided by ${portableNames[platform]}`);
+      }
+      portableNames[platform] = asset.name;
+      platforms[platform] = { url, sha256: asset.sha256, size: asset.size };
+      continue;
+    }
+    const extension = /\.(deb|rpm|snap|AppImage|dmg)$/.exec(asset.name)?.[1];
+    if (extension === undefined) continue;
+    const match = PACKAGE.exec(asset.name);
+    if (!match) {
+      // The macOS CPack name (<app>-<version>-Darwin.dmg) carries no platform: it is not part of the manifest.
+      if (extension === 'dmg') continue;
+      throw new Error(`asset "${asset.name}": name must be <app>-<version>-<os>-<arch>.${extension}`);
+    }
     const [, version, platform] = match;
     if (version !== options.version) {
       throw new Error(`asset "${asset.name}": version ${version} does not match release version ${options.version}`);
     }
-    platforms[platform] = { url, sha256: asset.sha256, size: asset.size };
+    const kind = extension.toLowerCase() as PackageKind;
+    const key = `${platform} ${kind}`;
+    if (packageNames[key] !== undefined) throw new Error(`asset "${asset.name}": ${key} is already provided by ${packageNames[key]}`);
+    packageNames[key] = asset.name;
+    (packages[platform] ??= {})[kind] = { url, sha256: asset.sha256, size: asset.size };
   }
-  return Object.keys(languages).length > 0 ? { version: options.version, platforms, languages } : { version: options.version, platforms };
+  const result: Manifest = { version: options.version, platforms };
+  if (Object.keys(languages).length > 0) result.languages = languages;
+  if (Object.keys(packages).length > 0) result.packages = packages;
+  return result;
 }
