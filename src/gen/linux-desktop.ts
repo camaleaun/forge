@@ -3,6 +3,9 @@ import type { Ir } from '../ir/types.ts';
 // What package.json says about the app (all optional): shown in the launcher, the metainfo and the packages.
 export type PackageMeta = { description?: string; license?: string; homepage?: string };
 
+// Sizes of the hicolor theme the forge rasterizes (the SVG is installed as the scalable icon).
+export const LINUX_ICON_SIZES = [16, 32, 48, 64, 128, 256, 512];
+
 const oneLine = (text: string): string => text.replace(/\s+/g, ' ').trim();
 const xml = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 

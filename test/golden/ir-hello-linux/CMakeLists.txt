@@ -24,7 +24,43 @@ target_compile_options(hello PRIVATE
 target_link_options(hello PRIVATE -Wl,--gc-sections,--as-needed -s)
 target_link_libraries(hello PRIVATE PkgConfig::GTK4)
 
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX "/usr")
+endif()
 include(GNUInstallDirs)
 install(TARGETS hello RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES local.forge.hello.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES local.forge.hello.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+
+# Packages: deb, rpm and tar.gz named <app>-<version>-linux-<arch> (aarch64 is called arm64).
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+  set(FORGE_ARCH arm64)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+  set(FORGE_ARCH x86_64)
+else()
+  set(FORGE_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+endif()
+
+set(CPACK_GENERATOR "DEB;RPM;TGZ")
+set(CPACK_PACKAGE_NAME "hello")
+set(CPACK_PACKAGE_VERSION "0.1.0")
+set(CPACK_PACKAGE_FILE_NAME "hello-0.1.0-linux-${FORGE_ARCH}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "hello")
+set(CPACK_PACKAGE_CONTACT "hello <noreply@localhost>")
+set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
+
+set(CPACK_DEBIAN_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}.deb")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
+
+set(CPACK_RPM_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}.rpm")
+set(CPACK_RPM_PACKAGE_AUTOREQ ON)
+set(CPACK_RPM_PACKAGE_REQUIRES "gtk4")
+set(CPACK_RPM_PACKAGE_LICENSE "Proprietary")
+set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
+  "/usr/share/applications"
+  "/usr/share/metainfo"
+  "/usr/share/icons"
+  "/usr/share/icons/hicolor")
+
+include(CPack)

@@ -17,7 +17,7 @@ import { generateCmake } from './cmake.ts';
 import { generateCmakeLinux } from './cmake-linux.ts';
 import { generateDmgSetupScript } from './dmg.ts';
 import type { I18nGenOptions } from './i18n-options.ts';
-import { generateDesktopEntry, generateMetainfo } from './linux-desktop.ts';
+import { LINUX_ICON_SIZES, generateDesktopEntry, generateMetainfo } from './linux-desktop.ts';
 import type { PackageMeta } from './linux-desktop.ts';
 import { generateLinuxUi } from './linux.ts';
 import { generateMacosUi } from './macos.ts';
@@ -71,16 +71,13 @@ export function generateProject(source: Ir, target: string, options: { iconSvg?:
   return files;
 }
 
-// Sizes of the hicolor theme the forge rasterizes (the SVG is installed as the scalable icon).
-export const LINUX_ICON_SIZES = [16, 32, 48, 64, 128, 256, 512];
-
 function generateLinuxProject(ir: Ir, i18n: I18nGenOptions | undefined, appId: string, iconSvg: string | undefined, meta: PackageMeta): ProjectFiles {
   const files: ProjectFiles = new Map([
     ['forge_app.hpp', generateAppHeader(ir, !!i18n)],
     ['actions.cpp', generateActionsCpp(ir, !!i18n)],
     ['cli_router.cpp', generateCliRouter(ir, !!i18n)],
     ['ui_linux.cpp', generateLinuxUi(ir, appId, i18n)],
-    ['CMakeLists.txt', generateCmakeLinux(ir, !!i18n, { appId, icon: !!ir.app.icon })],
+    ['CMakeLists.txt', generateCmakeLinux(ir, !!i18n, { appId, icon: !!ir.app.icon, meta })],
     [`${appId}.desktop`, generateDesktopEntry(ir, appId, meta)],
     [`${appId}.metainfo.xml`, generateMetainfo(ir, appId, meta)],
   ]);

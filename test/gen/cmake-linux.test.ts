@@ -54,9 +54,61 @@ describe('given the install rules', () => {
   });
   it('when the app has an icon, then the hicolor tree is installed; otherwise it is not', () => {
     assert.ok(generateCmakeLinux(helloIr(), false, { ...options, icon: true }).includes('install(DIRECTORY icons/hicolor DESTINATION ${CMAKE_INSTALL_DATADIR}/icons)'));
-    assert.ok(!generateCmakeLinux(helloIr(), false, options).includes('icons/hicolor'));
+    assert.ok(!generateCmakeLinux(helloIr(), false, options).includes('install(DIRECTORY'));
   });
   it('when the app id comes from package.json, then the file names follow it', () => {
     assert.ok(generateCmakeLinux(helloIr(), false, { appId: 'org.example.Hello', icon: false }).includes('install(FILES org.example.Hello.desktop'));
+  });
+});
+
+describe('given the CPack setup', () => {
+  const ir = helloIr();
+  ir.app.version = '0.2.0-rc.1';
+  const meta = { description: 'Says hello', license: 'MIT', homepage: 'https://example.org/hello' };
+  const cmake = generateCmakeLinux(ir, false, { appId: 'local.forge.hello', icon: true, meta });
+  const withI18n = generateCmakeLinux(ir, true, { appId: 'local.forge.hello', icon: true, meta });
+
+  it('when generating, then deb, rpm and tar.gz are built', () => {
+    assert.ok(cmake.includes('set(CPACK_GENERATOR "DEB;RPM;TGZ")'));
+    assert.ok(cmake.includes('include(CPack)'));
+  });
+  it('when the version has a prerelease, then the packages use a tilde so the rc sorts before the final', () => {
+    assert.ok(cmake.includes('set(CPACK_PACKAGE_VERSION "0.2.0~rc.1")'));
+  });
+  it('when generating, then files are <app>-<version>-linux-<arch> with aarch64 called arm64 and the original version', () => {
+    assert.ok(cmake.includes('set(CPACK_PACKAGE_FILE_NAME "hello-0.2.0-rc.1-linux-${FORGE_ARCH}")'));
+    assert.ok(cmake.includes('set(FORGE_ARCH arm64)'));
+    assert.ok(cmake.includes('set(FORGE_ARCH x86_64)'));
+    assert.ok(cmake.includes('set(CPACK_DEBIAN_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}.deb")'));
+    assert.ok(cmake.includes('set(CPACK_RPM_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}.rpm")'));
+  });
+  it('when generating, then everything installs under /usr', () => {
+    assert.ok(cmake.includes('set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")'));
+    assert.ok(cmake.includes('set(CMAKE_INSTALL_PREFIX "/usr")'));
+  });
+  it('when generating, then deb finds its library dependencies and rpm requires gtk4', () => {
+    assert.ok(cmake.includes('set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)'));
+    assert.ok(cmake.includes('set(CPACK_RPM_PACKAGE_REQUIRES "gtk4")'));
+    assert.ok(cmake.includes('set(CPACK_RPM_PACKAGE_AUTOREQ ON)'));
+  });
+  it('when the app has language packs, then glib-networking (TLS for libsoup) is a dependency of both', () => {
+    assert.ok(withI18n.includes('set(CPACK_DEBIAN_PACKAGE_DEPENDS "glib-networking")'));
+    assert.ok(withI18n.includes('set(CPACK_RPM_PACKAGE_REQUIRES "gtk4, glib-networking")'));
+    assert.ok(!cmake.includes('glib-networking'));
+  });
+  it('when package metadata exists, then it fills the package fields', () => {
+    assert.ok(cmake.includes('set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Says hello")'));
+    assert.ok(cmake.includes('set(CPACK_PACKAGE_HOMEPAGE_URL "https://example.org/hello")'));
+    assert.ok(cmake.includes('set(CPACK_RPM_PACKAGE_LICENSE "MIT")'));
+  });
+  it('when there is no metadata, then summary falls back to the name and the license to Proprietary', () => {
+    const plain = generateCmakeLinux(helloIr(), false, { appId: 'local.forge.hello', icon: false });
+    assert.ok(plain.includes('set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "hello")'));
+    assert.ok(plain.includes('set(CPACK_RPM_PACKAGE_LICENSE "Proprietary")'));
+    assert.ok(!plain.includes('HOMEPAGE_URL'));
+  });
+  it('when the app has an icon, then rpm does not claim the shared icon and share directories', () => {
+    assert.ok(cmake.includes('/usr/share/icons/hicolor/48x48/apps'));
+    assert.ok(cmake.includes('CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION'));
   });
 });

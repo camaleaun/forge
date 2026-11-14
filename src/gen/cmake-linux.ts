@@ -1,13 +1,28 @@
 import type { Ir } from '../ir/types.ts';
 import { appIdFor } from '../project/app-id.ts';
+import { cppString } from './escape.ts';
+import { LINUX_ICON_SIZES } from './linux-desktop.ts';
+import type { PackageMeta } from './linux-desktop.ts';
+import { packageVersion } from './linux-version.ts';
+
+const q = cppString;
 
 // CMake project for the Linux target: GTK 4 from pkg-config (never bundled), plus libsoup 3 for apps
 // that download language packs. The install rules follow the freedesktop layout; CPack is below.
-export type CmakeLinuxOptions = { appId?: string; icon?: boolean };
+export type CmakeLinuxOptions = { appId?: string; icon?: boolean; meta?: PackageMeta };
 
 export function generateCmakeLinux(ir: Ir, i18n = false, options: CmakeLinuxOptions = {}): string {
   const appId = options.appId ?? appIdFor(ir.app, 'linux');
   const icon = options.icon ?? !!ir.app.icon;
+  const meta = options.meta ?? {};
+  // The rpm must not claim the directories that other packages share.
+  const sharedDirs = [
+    '/usr/share/applications', '/usr/share/metainfo', '/usr/share/icons', '/usr/share/icons/hicolor',
+    ...(icon ? [...LINUX_ICON_SIZES.map((size) => `${size}x${size}`), 'scalable'].flatMap((dir) => [`/usr/share/icons/hicolor/${dir}`, `/usr/share/icons/hicolor/${dir}/apps`]) : []),
+  ];
+  const homepage = meta.homepage ? `set(CPACK_PACKAGE_HOMEPAGE_URL ${q(meta.homepage)})\n` : '';
+  const debDepends = i18n ? 'set(CPACK_DEBIAN_PACKAGE_DEPENDS "glib-networking")\n' : '';
+  const rpmRequires = i18n ? 'gtk4, glib-networking' : 'gtk4';
   const { name, version } = ir.app;
   // CMake's project(VERSION) only accepts numeric x.y.z.w: the prerelease suffix lives in the package version.
   const numericVersion = version.replace(/[-+].*$/, '');
@@ -40,9 +55,42 @@ target_compile_options(${name} PRIVATE
 target_link_options(${name} PRIVATE -Wl,--gc-sections,--as-needed -s)
 target_link_libraries(${name} PRIVATE PkgConfig::GTK4${soupLink})
 
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX "/usr")
+endif()
 include(GNUInstallDirs)
 install(TARGETS ${name} RUNTIME DESTINATION \${CMAKE_INSTALL_BINDIR})
 install(FILES ${appId}.desktop DESTINATION \${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES ${appId}.metainfo.xml DESTINATION \${CMAKE_INSTALL_DATADIR}/metainfo)
-${icon ? 'install(DIRECTORY icons/hicolor DESTINATION \${CMAKE_INSTALL_DATADIR}/icons)\n' : ''}`;
+${icon ? 'install(DIRECTORY icons/hicolor DESTINATION \${CMAKE_INSTALL_DATADIR}/icons)\n' : ''}
+# Packages: deb, rpm and tar.gz named <app>-<version>-linux-<arch> (aarch64 is called arm64).
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+  set(FORGE_ARCH arm64)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+  set(FORGE_ARCH x86_64)
+else()
+  set(FORGE_ARCH "\${CMAKE_SYSTEM_PROCESSOR}")
+endif()
+
+set(CPACK_GENERATOR "DEB;RPM;TGZ")
+set(CPACK_PACKAGE_NAME ${q(name)})
+set(CPACK_PACKAGE_VERSION ${q(packageVersion(version))})
+set(CPACK_PACKAGE_FILE_NAME "${name}-${version}-linux-\${FORGE_ARCH}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY ${q(meta.description ?? name)})
+${homepage}set(CPACK_PACKAGE_CONTACT ${q(`${name} <noreply@localhost>`)})
+set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
+
+set(CPACK_DEBIAN_FILE_NAME "\${CPACK_PACKAGE_FILE_NAME}.deb")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
+${debDepends}
+set(CPACK_RPM_FILE_NAME "\${CPACK_PACKAGE_FILE_NAME}.rpm")
+set(CPACK_RPM_PACKAGE_AUTOREQ ON)
+set(CPACK_RPM_PACKAGE_REQUIRES ${q(rpmRequires)})
+set(CPACK_RPM_PACKAGE_LICENSE ${q(meta.license ?? 'Proprietary')})
+set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
+${sharedDirs.map((dir) => `  ${q(dir)}`).join('\n')})
+
+include(CPack)
+`;
 }
