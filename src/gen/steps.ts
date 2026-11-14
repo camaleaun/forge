@@ -53,7 +53,8 @@ export function stepMembers(ir: Ir, flavor: 'macos' | 'linux'): string {
     ? '[window_ setContentSize:NSMakeSize(steps_[index].width, steps_[index].height)];'
     : `gtk_window_set_default_size(GTK_WINDOW(window_), steps_[index].width, steps_[index].height);
     gtk_widget_set_size_request(gtk_window_get_child(GTK_WINDOW(window_)), steps_[index].width, steps_[index].height);
-    gtk_window_set_default_widget(GTK_WINDOW(window_), steps_[index].primary);${hasCancel ? '\n    cancel_ = steps_[index].cancel;' : ''}`;
+    gtk_window_set_default_widget(GTK_WINDOW(window_), steps_[index].primary);
+    if (steps_[index].primary) gtk_widget_grab_focus(steps_[index].primary);  // a focused button would take Enter itself${hasCancel ? '\n    cancel_ = steps_[index].cancel;' : ''}`;
   const members: string[] = [];
   if (hasSteps) {
     members.push(`  // <steps>: one page per screen; showing one hides the others and sizes the window to it.

@@ -72,6 +72,7 @@ describe('given the steps-app fixture (a language screen and a hello screen)', (
     assert.match(source, /add_step\(w_language, 420, 180, w_button_\d+, w_button_\d+\);/);
     assert.equal(source.match(/gtk_widget_add_css_class\(w_button_\d+, "suggested-action"\);/g)?.length, 2);
     assert.ok(source.includes('gtk_window_set_default_widget(GTK_WINDOW(window_), steps_[index].primary);'));
+    assert.ok(source.includes('gtk_widget_grab_focus(steps_[index].primary);'), 'the focus follows the default, or a focused Back button would take Enter');
     assert.ok(source.includes('GDK_KEY_Escape') && source.includes('gtk_widget_add_controller(window, keys);'));
   });
 
