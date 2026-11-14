@@ -1,0 +1,10 @@
+#!/bin/sh
+# Resolve symlinks so forge can be linked into a directory on PATH.
+src="$0"
+while [ -L "$src" ]; do
+  dir="$(cd "$(dirname "$src")" && pwd)"
+  src="$(readlink "$src")"
+  case "$src" in /*) ;; *) src="$dir/$src" ;; esac
+done
+root="$(cd "$(dirname "$src")/.." && pwd)"
+exec node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON "$root/src/cli/forge.ts" "$@"
