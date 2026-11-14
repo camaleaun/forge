@@ -1,0 +1,21 @@
+# forge
+
+> Tiny native apps from a web-like source: TSX, CSS and TypeScript. v1 builds a macOS app (about 73 KB for hello world) with a CLI in the same binary, a browser and phone preview (`forge start`), and a styled DMG. forge itself has no npm dependencies (Node 24).
+
+An app is `package.json` (name, version) + `App.tsx` + `App.css` (+ optional `icon.svg`). Elements: window, view, text, button. Handlers run once at build time and are recorded as effects. Linux, Windows, web, mobile and i18n are planned, not built.
+
+## Docs
+
+- [Getting started](https://camaleaun.github.io/forge/docs/getting-started/): install, forge start, forge build, cmake
+- [Writing an app](https://camaleaun.github.io/forge/docs/writing-an-app/): files, elements, state() and handlers
+- [CSS reference](https://camaleaun.github.io/forge/docs/css-reference/): the exact CSS subset and errors
+- [CLI reference](https://camaleaun.github.io/forge/docs/cli-reference/): build, start (--local, --qr, keys o/q/h), info, manifest
+- [Preview on your phone](https://camaleaun.github.io/forge/docs/preview-on-your-phone/): network preview with a secret token
+- [Packaging and releases](https://camaleaun.github.io/forge/docs/packaging-and-releases/): .app, .dmg, icons, signing, latest.json, forge-action
+- [Roadmap](https://camaleaun.github.io/forge/docs/roadmap/): planned work
+
+## Source
+
+- [camaleaun/forge](https://github.com/camaleaun/forge)
+- [camaleaun/forge-hello-world](https://github.com/camaleaun/forge-hello-world)
+- [camaleaun/forge-action](https://github.com/camaleaun/forge-action)

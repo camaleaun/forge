@@ -1,0 +1,15 @@
+{
+  "name": "forge-site",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "node scripts/check.mjs"
+  },
+  "dependencies": {
+    "astro": "^7.4.12"
+  }
+}
