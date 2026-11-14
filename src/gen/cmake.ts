@@ -71,7 +71,7 @@ export function generateCmake(ir: Ir, i18n = false, options: CmakeOptions = {}):
   // The .icns goes to Contents/Resources and Info.plist names it (without the extension).
   const glass = options.glassIcon === true;
   const iconResource = icon && !glass ? `set_source_files_properties(${icon} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)\n` : '';
-  const i18nSources = i18n ? '\n  messages.cpp\n  i18n.cpp\n  i18n_macos.mm' : '';
+  const i18nSources = i18n ? '\n  messages.cpp\n  i18n.cpp\n  i18n_common.cpp\n  i18n_macos.mm' : '';
   // i18n apps carry the Foundation loader: -Oz, no Objective-C exception tables and no local symbols keep them small.
   const optimize = i18n ? '-Oz' : '-Os';
   const objcxxFlags = i18n ? '-fobjc-arc -fno-objc-exceptions' : '-fobjc-arc';

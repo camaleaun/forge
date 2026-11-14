@@ -24,7 +24,7 @@ export const TARGETS = ['macos', 'linux'];
 // Hand-written runtime sources that the build copies next to the generated files.
 export const RUNTIME_FILES = ['main.cpp', 'cli_surface.hpp'];
 // The i18n runtime is copied only for apps that have language packs.
-export const I18N_RUNTIME_FILES = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_macos.mm'];
+export const I18N_RUNTIME_FILES = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_platform.hpp', 'i18n_macos.mm'];
 // Linux shares the loader core and swaps the platform adapter (i18n_platform.hpp is its interface).
 export const I18N_RUNTIME_FILES_LINUX = ['i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_platform.hpp', 'i18n_linux.cpp'];
 export function hasPacks(i18n: I18nGenOptions | undefined): i18n is I18nGenOptions {

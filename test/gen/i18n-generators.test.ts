@@ -111,7 +111,7 @@ describe('given an IR without translatable messages, or no packs', () => {
   it('when asking for the runtime files, then only apps with packs get the i18n files', () => {
     assert.deepEqual(runtimeFilesFor(undefined), RUNTIME_FILES);
     assert.deepEqual(runtimeFilesFor(helloI18nOptions({ packs: [] })), RUNTIME_FILES);
-    assert.deepEqual(runtimeFilesFor(helloI18nOptions()), [...RUNTIME_FILES, 'i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_macos.mm']);
+    assert.deepEqual(runtimeFilesFor(helloI18nOptions()), [...RUNTIME_FILES, 'i18n_loader.hpp', 'i18n.hpp', 'i18n.cpp', 'i18n_common.cpp', 'i18n_platform.hpp', 'i18n_macos.mm']);
     for (const file of runtimeFilesFor(helloI18nOptions())) assert.ok(existsSync(join(RUNTIME_DIR, file)), file);
   });
 });
@@ -120,7 +120,7 @@ describe('given the project of an i18n app', () => {
   it('when generating it, then messages.cpp and the i18n CMake sources are included', () => {
     const files = generateProject(helloI18nIr(), 'macos', { i18n: helloI18nOptions() });
     assert.ok((files.get('messages.cpp') as string).includes('MSG_COUNT = 8'));
-    assert.match(files.get('CMakeLists.txt') as string, /messages\.cpp\n {2}i18n\.cpp\n {2}i18n_macos\.mm\)/);
+    assert.match(files.get('CMakeLists.txt') as string, /messages\.cpp\n {2}i18n\.cpp\n {2}i18n_common\.cpp\n {2}i18n_macos\.mm\)/);
     assert.ok((files.get('ui_macos.mm') as string).includes('Text::msg(2)'));
   });
   it('when the IR has no select node and no menu, then no language UI is emitted', () => {

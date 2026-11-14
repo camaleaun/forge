@@ -70,6 +70,7 @@ export function buildApp(ir: Ir, options: I18nGenOptions): App {
     [join(dir, 'cli_router.cpp'), []],
     [join(dir, 'messages.cpp'), []],
     [join(RUNTIME_DIR, 'i18n.cpp'), []],
+    [join(RUNTIME_DIR, 'i18n_common.cpp'), []],
     [join(RUNTIME_DIR, 'i18n_macos.mm'), ['-fobjc-arc']],
     [join(ROOT, 'test/gen/fixtures/ui_stub.cpp'), []],
   ];

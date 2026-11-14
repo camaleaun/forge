@@ -26,6 +26,7 @@ add_executable(hello MACOSX_BUNDLE
   ui_macos.mm
   messages.cpp
   i18n.cpp
+  i18n_common.cpp
   i18n_macos.mm)
 
 target_compile_options(hello PRIVATE
