@@ -55,3 +55,17 @@ describe('given a zip built for another version than the tag', () => {
     );
   });
 });
+
+describe('given a prerelease version such as 0.1.0-rc.1', () => {
+  it('when building the manifest, then the zip name carries the full version and the platform is still parsed', () => {
+    const manifest = buildManifest(
+      { version: '0.1.0-rc.1', repo: 'camaleaun/forge-hello-world', tag: 'v0.1.0-rc.1' },
+      [{ name: 'hello-0.1.0-rc.1-darwin-arm64.zip', sha256: 'aa', size: 10 }],
+    );
+    assert.deepEqual(Object.keys(manifest.platforms), ['darwin-arm64']);
+    assert.equal(
+      manifest.platforms['darwin-arm64'].url,
+      'https://github.com/camaleaun/forge-hello-world/releases/download/v0.1.0-rc.1/hello-0.1.0-rc.1-darwin-arm64.zip',
+    );
+  });
+});
