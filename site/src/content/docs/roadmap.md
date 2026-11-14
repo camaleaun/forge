@@ -21,7 +21,6 @@ Apps will ship only the default language (English). At launch they detect the op
 
 ## Look and widgets
 
-- **Liquid Glass icons** for macOS 26, instead of today's classic `.icns`. A generator exists and its validation is in progress. <span class="badge">planned</span>
 - **More widgets** beyond `window`, `view`, `text` and `button`: list or table, progress bar and input, plus a larger example app. <span class="badge">planned</span>
 - **Notarized releases by default**: the steps exist and are optional today; see [Packaging and releases](../packaging-and-releases/).
 

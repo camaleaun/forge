@@ -20,7 +20,18 @@ forge/scripts/macos-dmg.sh build/out/CPackConfig.cmake build/cpack hello
 
 ## Icons
 
-Put an `icon.svg` next to `App.tsx`. `forge build` renders it with its own SVG rasterizer (a simple subset of SVG) into `AppIcon.icns` and bundles it in the app. The icon is a classic `.icns` with the rounded square drawn in; [Liquid Glass](../roadmap/) icons are planned.
+Put an `icon.svg` next to `App.tsx`. `forge build` renders it with its own SVG rasterizer (a simple subset of SVG) into `AppIcon.icns` and bundles it in the app. The icon is a classic `.icns` with the rounded square drawn in.
+
+### Liquid Glass icon (macOS 26)
+
+For the system's Liquid Glass look, add an `icon/` folder next to `App.tsx` with flat, square SVG layers (no rounded square: the system applies the shape and the glass):
+
+| File | Purpose |
+|---|---|
+| `icon/background.svg` | Required. The background layer. |
+| `icon/foreground-1.svg`, `icon/foreground-2.svg`, ... | At least one, numbered from 1 without gaps, back to front. |
+
+`forge build` checks the layers (SVG problems are reported as `icon/<file>:line:column`, layers must be square, symbolic links are refused) and writes an `AppIcon.icon/` folder next to the generated sources. The generated `CMakeLists.txt` looks for Xcode 26's `actool` when it is configured. If it finds version 26 or newer, it compiles `AppIcon.icon` into `Assets.car` plus a fallback `AppIcon.icns`, copies both to the bundle's Resources and adds `CFBundleIconName` to `Info.plist`. Without it, the app falls back to the classic icon made from `icon.svg`, and has no icon if there is none. Keep an `icon.svg` too if you build on machines without Xcode 26.
 
 ## Signing and notarization
 

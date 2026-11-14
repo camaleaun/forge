@@ -14,6 +14,7 @@ An app is a folder with four files:
 | `App.tsx` | The markup and the behavior. |
 | `App.css` | The look (a small CSS subset). |
 | `icon.svg` | Optional. The app icon; `forge build` turns it into `AppIcon.icns`. |
+| `icon/` | Optional. Liquid Glass icon layers (`background.svg`, `foreground-1.svg`, ...); see [Packaging and releases](../packaging-and-releases/). |
 
 ```json
 { "name": "hello", "version": "0.1.0" }

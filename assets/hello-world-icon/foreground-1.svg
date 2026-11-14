@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- a speech bubble with three dots: "hello" -->
+  <path d="M 300 290 H 724 A 90 90 0 0 1 814 380 V 560 A 90 90 0 0 1 724 650 H 560 L 420 772 V 650 H 300 A 90 90 0 0 1 210 560 V 380 A 90 90 0 0 1 300 290 Z" fill="#ffffff"/>
+  <circle cx="390" cy="470" r="38" fill="#0a84ff"/>
+  <circle cx="512" cy="470" r="38" fill="#0a84ff"/>
+  <circle cx="634" cy="470" r="38" fill="#0a84ff"/>
+</svg>

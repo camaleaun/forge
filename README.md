@@ -39,6 +39,11 @@ Link `bin/forge` into a directory on your PATH to use `forge` anywhere.
 `forge start` serves the preview on your local network (a secret token in the URL is required) and prints the URLs and a QR code,
 so you can open it on a phone on the same Wi-Fi. In a terminal: `o` opens it in the browser, `q` shows the QR code (it is not printed on its own; `--qr` prints it at startup), `h` shows help, Ctrl+C quits.
 
+## App icon
+
+- `icon.svg` next to `App.tsx`: a classic `AppIcon.icns`, rendered by forge's own SVG rasterizer.
+- `icon/` folder (`background.svg` and `foreground-1.svg`, `foreground-2.svg`, ... as flat square layers): a macOS 26 Liquid Glass icon. `forge build` writes `AppIcon.icon/`; the generated CMake compiles it with Xcode 26's `actool` when it finds one at configure time and otherwise falls back to the classic icon (or none). Details in the Packaging docs. A proposal for the hello world app is in `assets/hello-world-icon/`.
+
 ## How it works
 `App.tsx` is transformed by a small dependency-free JSX transformer (loaded with Node module hooks), `App.css` by a CSS-subset parser.
 Both become one IR (`forge start` renders it as HTML, `forge build` turns it into native code). Handlers run once at build time and
