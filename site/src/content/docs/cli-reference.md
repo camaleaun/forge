@@ -27,7 +27,7 @@ cmake --build build/out
 
 ## forge start
 
-Starts the live preview server (default port `5170`). The app is rendered as HTML, reloads when you edit the source, and has a panel for the CLI commands.
+Starts the live preview server (default port `5170`). The app is rendered as plain HTML for the `web` target: the root `<window>` fills the whole page (full width, at least the viewport height) and the native window size is ignored, so it flows like a normal page on a desktop browser or a phone; its padding, gap and background still apply. The panel for the CLI commands (and the language picker, when the app has no `<select language>`) sits below the app. The page reloads when you edit the source.
 
 | Option | Effect |
 |---|---|

@@ -61,6 +61,8 @@ The TSX is transformed by a small dependency-free JSX transformer, so there is n
 | `<view>` | A container (flex layout) for other elements. |
 | `<text>` | A label. Its content is literal text **or** a single state, not a mix. |
 | `<button>` | A button with the same content rule as `<text>`. The only element that accepts `onClick`. |
+| `<progress>` | A progress bar (leaf, no children). `value` (0 to `max`, a number such as `value={0.4}`) with `max` (default `1`), or the bare attribute `indeterminate`, or `source="language-download"`: a bar tied to the language pack download that is only visible while a download runs. `source` needs a `languages/` folder, like `<select language>`. `value` with `indeterminate` is an error. The native generators do not draw it yet; the preview does. |
+| `<only>` / `<except>` | Target conditionals, resolved at build time: `<only macos linux>...</only>` keeps its children for those targets, `<except web>...</except>` for every other target. Targets are bare attributes: `macos`, `linux`, `windows`, `web`, `android`, `ios` (the last three are accepted names; nothing is generated for them yet). They work anywhere in the tree, including around `<select language />` and as the child list of `<window>`, but cannot wrap the root `<window>`. Only elements can be inside (no text or state). No targets, an unknown target, or mixing `only` and `except` is an error with `App.tsx:line:column`. `forge start` is the `web` target; a build that names no target is treated as `web`. |
 
 Any element can have `class` and `id`. Ids must match `^[a-z][A-Za-z0-9_]*$`, must be unique, must not be a C++ keyword, and must not start with `forge_`, `s` followed by a digit, or `handler_`.
 

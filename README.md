@@ -25,7 +25,7 @@ export default function App() {
 ```
 
 An app is `package.json` (name, version) + `App.tsx` + `App.css`. v1 targets macOS (plus a CLI in the same binary); Linux (GTK 4, release candidate) is available with `--target linux`;
-Windows, web and mobile come later. Elements: `window`, `view`, `text`, `button`.
+Windows, web and mobile come later. Elements: `window`, `view`, `text`, `button`, `select language`, `progress` (preview only for now). Per-target code: `<only macos linux>...</only>` and `<except web>...</except>` in TSX, `@only macos { ... }` and `@except web { ... }` in CSS (resolved at build time; `forge start` is the `web` target).
 
 ## Commands
 ```sh
@@ -37,7 +37,7 @@ forge manifest --dir <dir> --tag <tag> --repo <owner/repo>  # latest.json for th
 Link `bin/forge` into a directory on your PATH to use `forge` anywhere.
 
 `forge start` serves the preview on your local network (a secret token in the URL is required) and prints the URLs and a QR code,
-so you can open it on a phone on the same Wi-Fi. In a terminal: `o` opens it in the browser, `q` shows the QR code (it is not printed on its own; `--qr` prints it at startup), `h` shows help, Ctrl+C quits.
+so you can open it on a phone on the same Wi-Fi. The preview is a normal full-page HTML document (the app root fills the page, the native window size is ignored; the CLI panel is below). In a terminal: `o` opens it in the browser, `q` shows the QR code (it is not printed on its own; `--qr` prints it at startup), `h` shows help, Ctrl+C quits.
 
 ## App icon
 
