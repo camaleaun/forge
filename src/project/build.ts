@@ -17,8 +17,8 @@ export async function buildProjectIr(dir: string): Promise<{ ir?: Ir; errors: st
   } catch (error) {
     return { errors: [(error as Error).message] };
   }
-  // An i18n/ folder switches on translation of literal JSX text and of the window title.
-  const translateLiterals = existsSync(join(resolve(dir), 'i18n'));
+  // An languages/ folder switches on translation of literal JSX text and of the window title.
+  const translateLiterals = existsSync(join(resolve(dir), 'languages'));
   const built = buildIr({ file: 'App.tsx', app: project.app, App: project.App, commands: project.commands, translateLiterals });
   const css = parseStyles(project.cssFiles.map((file) => ({ file, source: readFileSync(file, 'utf8') })));
   const errors = [...built.errors, ...css.errors];

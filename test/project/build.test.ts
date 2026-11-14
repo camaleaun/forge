@@ -117,15 +117,15 @@ describe('given an app with an icon.svg next to App.tsx', () => {
     }));
 });
 
-describe('given an app that imports the translation functions from forge and has an i18n folder', () => {
+describe('given an app that imports the translation functions from forge and has a languages folder', () => {
   it('when building the project IR, then __() texts and the literal JSX text become messages', () =>
     withCopy(async (dir) => {
       const source = readFileSync(join(dir, 'App.tsx'), 'utf8')
         .replace("import { state } from 'forge';", "import { state, __ } from 'forge';")
         .replace("state('Press the button')", "state(__('Press the button'))");
       writeFileSync(join(dir, 'App.tsx'), source);
-      mkdirSync(join(dir, 'i18n'));
-      writeFileSync(join(dir, 'i18n/pt-BR.lang'), 'Press the button\tAperte o botão\n');
+      mkdirSync(join(dir, 'languages'));
+      writeFileSync(join(dir, 'languages/pt-BR.lang'), 'Press the button\tAperte o botão\n');
       const { ir, errors } = await buildProjectIr(dir);
       assert.deepEqual(errors, []);
       assert.deepEqual(ir?.states[0].initial, { kind: 'message', text: 'Press the button' });
@@ -134,7 +134,7 @@ describe('given an app that imports the translation functions from forge and has
       assert.deepEqual(ir?.messages.map((m) => m.text), ['Greet', 'Hello, forge', 'Press the button']);
     }));
 
-  it('when the project has no i18n folder, then the same __() still works and plain JSX text stays literal', () =>
+  it('when the project has no languages folder, then the same __() still works and plain JSX text stays literal', () =>
     withCopy(async (dir) => {
       const source = readFileSync(join(dir, 'App.tsx'), 'utf8')
         .replace("import { state } from 'forge';", "import { state, __ } from 'forge';")

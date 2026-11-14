@@ -160,7 +160,7 @@ describe('given an app that uses translatable messages', () => {
   });
 });
 
-describe('given a project that has an i18n folder', () => {
+describe('given a project that has a languages folder', () => {
   const tree = () => h('window', { title: 'Hello, forge', 'forge:loc': [1, 1] },
     h('text', { 'forge:loc': [2, 3] }, 'Greet'),
     h('button', { 'forge:loc': [3, 3] }, 'Go'));
@@ -187,7 +187,7 @@ describe('given a language dropdown', () => {
     h('window', { 'forge:loc': [1, 1] }, h('select', { 'forge:loc': [2, 3], ...props }, ...children));
   const run = (tree: () => unknown, translateLiterals = true) => buildIr({ file: 'App.tsx', app, App: tree, translateLiterals });
 
-  it('when <select language /> is used in a project with an i18n folder, then the IR has a select node marked as the language selector', () => {
+  it('when <select language /> is used in a project with a languages folder, then the IR has a select node marked as the language selector', () => {
     resetStates();
     const { ir, errors } = run(withSelect({ language: true }));
     assert.deepEqual(errors, []);
@@ -198,10 +198,10 @@ describe('given a language dropdown', () => {
     assert.equal(select?.id, 'select_1');
   });
 
-  it('when the project has no i18n folder, then the build explains that a language dropdown needs one', () => {
+  it('when the project has no languages folder, then the build explains that a language dropdown needs one', () => {
     resetStates();
     assert.deepEqual(run(withSelect({ language: true }), false).errors,
-      ['App.tsx:2:3: <select language> needs an i18n/ folder with at least one language file']);
+      ['App.tsx:2:3: <select language> needs an languages/ folder with at least one language file']);
   });
 
   it('when <select> has no language attribute, then it is reported as unsupported in v1', () => {

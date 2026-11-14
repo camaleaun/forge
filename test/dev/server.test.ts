@@ -128,7 +128,7 @@ describe('given a dev server for the hello project', () => {
     for (const ignored of ['node_modules/x.js', 'a/node_modules/b/c.js', '.git/HEAD', 'build/out.o', 'dist\\app.js', 'out/x', '.build/y']) {
       assert.equal(isIgnoredChange(ignored), true, ignored);
     }
-    for (const kept of ['App.css', 'App.tsx', 'i18n/pt-BR.lang', 'src/node_modules_like.ts', 'rebuild/x.ts']) {
+    for (const kept of ['App.css', 'App.tsx', 'languages/pt-BR.lang', 'src/node_modules_like.ts', 'rebuild/x.ts']) {
       assert.equal(isIgnoredChange(kept), false, kept);
     }
     assert.equal(isIgnoredChange(null), false);

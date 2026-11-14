@@ -122,12 +122,12 @@ describe('given a signal that arrives right after the first output', () => {
   });
 });
 
-describe('given a project with an i18n folder', () => {
+describe('given a project with a languages folder', () => {
   it('when running "forge start --local", then the preview serves the language pack and shows the language dropdown', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'forge-start-i18n-'));
     cpSync(fixture, dir, { recursive: true });
-    mkdirSync(join(dir, 'i18n'));
-    writeFileSync(join(dir, 'i18n/pt-BR.lang'), 'Greet\tCumprimentar\nHello, forge\tOlá, forge\n');
+    mkdirSync(join(dir, 'languages'));
+    writeFileSync(join(dir, 'languages/pt-BR.lang'), 'Greet\tCumprimentar\nHello, forge\tOlá, forge\n');
     writeFileSync(join(dir, 'App.tsx'), (await import('node:fs')).readFileSync(join(dir, 'App.tsx'), 'utf8').replace('<button onClick={greet}>Greet</button>', '<button onClick={greet}>Greet</button>\n      <select language />'));
     const run = startForge(['--project', dir, '--port', '0', '--local'], /http:\/\/127\.0\.0\.1:(\d+)\//);
     try {

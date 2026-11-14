@@ -5,26 +5,26 @@ import { buildProjectIr } from '../project/build.ts';
 
 export type I18nCommand = { action: 'extract' | 'check'; project: string; strict?: boolean };
 
-// `forge i18n extract` writes i18n/template.lang; `forge i18n check` reports coverage. Returns the exit code.
+// `forge i18n extract` writes languages/template.lang; `forge i18n check` reports coverage. Returns the exit code.
 export async function i18n(command: I18nCommand): Promise<number> {
   const dir = resolve(command.project);
-  // Phrases are only translatable once i18n/ exists, so extract creates it before reading the app.
-  const created = command.action === 'extract' && !existsSync(join(dir, 'i18n'));
-  if (created) mkdirSync(join(dir, 'i18n'), { recursive: true });
+  // Phrases are only translatable once languages/ exists, so extract creates it before reading the app.
+  const created = command.action === 'extract' && !existsSync(join(dir, 'languages'));
+  if (created) mkdirSync(join(dir, 'languages'), { recursive: true });
   const { ir, errors } = await buildProjectIr(dir);
   if (!ir) {
-    if (created) rmdirSync(join(dir, 'i18n'));
+    if (created) rmdirSync(join(dir, 'languages'));
     for (const error of errors) console.error(`error: ${error}`);
     return 1;
   }
   if (command.action === 'extract') {
-    writeFileSync(join(dir, 'i18n', 'template.lang'), extractTemplate(ir.messages));
-    console.log(`i18n/template.lang: ${ir.messages.length} phrases`);
+    writeFileSync(join(dir, 'languages', 'template.lang'), extractTemplate(ir.messages));
+    console.log(`languages/template.lang: ${ir.messages.length} phrases`);
     return 0;
   }
   const result = checkProjectI18n(dir, ir);
   for (const error of result.errors) console.error(`error: ${error}`);
-  if (result.locales.length === 0 && result.errors.length === 0) console.log('no translations: add i18n/<tag>.lang (forge i18n extract writes a template)');
+  if (result.locales.length === 0 && result.errors.length === 0) console.log('no translations: add languages/<tag>.lang (forge i18n extract writes a template)');
   let incomplete = false;
   for (const locale of result.locales) {
     const percent = locale.total === 0 ? 100 : Math.floor((locale.translated * 100) / locale.total);

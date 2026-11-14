@@ -33,7 +33,7 @@ export async function start(options: StartOptions): Promise<void> {
     load: async () => {
       const built = await buildProjectIr(projectDir);
       if (!built.ir || !built.pkg) return { errors: built.errors };
-      // Language packs come from i18n/*.lang, the same way `forge build` makes them.
+      // Language packs come from languages/*.lang, the same way `forge build` makes them.
       const i18n = loadProjectI18n(projectDir, built.ir, built.pkg);
       if (i18n.errors.length > 0) return { errors: i18n.errors };
       return { ir: built.ir, errors: [], packs: i18n.packs.map((pack) => ({ tag: pack.tag, text: pack.text })) };

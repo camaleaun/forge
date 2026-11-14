@@ -1,11 +1,11 @@
 // What `forge build` and `forge i18n` know about a project's translations.
 //
 //   loadProjectI18n(dir, ir, pkg)  -> packs to publish, base URL, options, warnings, errors
-//   extractTemplate(messages)      -> text of i18n/template.lang
+//   extractTemplate(messages)      -> text of languages/template.lang
 //   checkProjectI18n(dir, ir)      -> per-locale coverage, missing phrases, orphans, errors
 //
-// i18n/*.lang are read as bytes (strict UTF-8), never through a symbolic link, and
-// i18n/template.lang is ignored. The result is deterministic: the same files give
+// languages/*.lang are read as bytes (strict UTF-8), never through a symbolic link, and
+// languages/template.lang is ignored. The result is deterministic: the same files give
 // the same pack bytes.
 import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, readdirSync } from 'node:fs';
@@ -49,7 +49,7 @@ function githubRepo(repository: unknown): string | undefined {
 }
 
 function readLangFiles(projectDir: string): { files: { name: string; text: string }[]; errors: string[] } {
-  const dir = join(resolve(projectDir), 'i18n');
+  const dir = join(resolve(projectDir), 'languages');
   const files: { name: string; text: string }[] = [];
   const errors: string[] = [];
   let stat;
@@ -58,17 +58,17 @@ function readLangFiles(projectDir: string): { files: { name: string; text: strin
   } catch {
     return { files, errors };
   }
-  if (stat.isSymbolicLink()) return { files, errors: ['i18n: a symbolic link is not allowed, use a real folder'] };
-  if (!stat.isDirectory()) return { files, errors: ['i18n: must be a folder'] };
+  if (stat.isSymbolicLink()) return { files, errors: ['languages: a symbolic link is not allowed, use a real folder'] };
+  if (!stat.isDirectory()) return { files, errors: ['languages: must be a folder'] };
   const names = readdirSync(dir).filter((n) => n.endsWith('.lang')).sort();
   if (names.length > MAX_LANG_FILES) {
-    return { files, errors: [`i18n: too many .lang files (${names.length}, the limit is ${MAX_LANG_FILES})`] };
+    return { files, errors: [`languages: too many .lang files (${names.length}, the limit is ${MAX_LANG_FILES})`] };
   }
   for (const base of names) {
-    const name = `i18n/${base}`;
+    const name = `languages/${base}`;
     const info = lstatSync(join(dir, base));
     if (info.isSymbolicLink()) {
-      errors.push(`${name}: a symbolic link is not allowed, copy the file into i18n/`);
+      errors.push(`${name}: a symbolic link is not allowed, copy the file into languages/`);
       continue;
     }
     if (!info.isFile()) continue;

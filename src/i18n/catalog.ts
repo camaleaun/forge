@@ -1,9 +1,9 @@
-// Catalog of the translator's i18n/<tag>.lang files, validated for `forge build`.
+// Catalog of the translator's languages/<tag>.lang files, validated for `forge build`.
 //
 //   loadCatalog(files, { appPhrases }?) -> { locales, errors, warnings }
 //
 // files:      [{ name, text }] where name is the path used in messages
-//             ("i18n/pt-BR.lang") and text is the decoded UTF-8 content.
+//             ("languages/pt-BR.lang") and text is the decoded UTF-8 content.
 // appPhrases: optional [{ text, context?, plural? }], every translatable phrase
 //             of the app (plural = the English plural text). Without it only
 //             what can be checked from the files alone is checked.
@@ -12,7 +12,7 @@
 //             mean pt-BR; en*.lang is refused; template.lang is ignored),
 //             syntax errors ("file:line: message"), header/file-name tag
 //             mismatch, wrong plural column counts, placeholder mismatches.
-// warnings:   missing translations (`i18n/pt-BR.lang: missing "Greet"`) and
+// warnings:   missing translations (`languages/pt-BR.lang: missing "Greet"`) and
 //             orphans; `--strict-i18n` turns them into errors in the caller.
 //
 // Placeholders are %s, %d and %N$s / %N$d (%% is a literal percent). A singular

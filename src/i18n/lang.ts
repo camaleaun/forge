@@ -1,5 +1,5 @@
 // The `.lang` text format: one parser/encoder for both the translator's source
-// files (i18n/<tag>.lang) and the language pack published with a release.
+// files (languages/<tag>.lang) and the language pack published with a release.
 //
 //   # comment                          ignored, as are blank lines
 //   forge-lang 1 <tag> <app> <version> optional header (the pack carries it)

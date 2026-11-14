@@ -12,8 +12,8 @@ const dirs: string[] = [];
 function project(files: Record<string, string | Uint8Array> = {}): string {
   const dir = mkdtempSync(join(tmpdir(), 'forge-i18n-'));
   dirs.push(dir);
-  if (Object.keys(files).length > 0) mkdirSync(join(dir, 'i18n'));
-  for (const [name, content] of Object.entries(files)) writeFileSync(join(dir, 'i18n', name), content);
+  if (Object.keys(files).length > 0) mkdirSync(join(dir, 'languages'));
+  for (const [name, content] of Object.entries(files)) writeFileSync(join(dir, 'languages', name), content);
   return dir;
 }
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }); });
@@ -29,14 +29,14 @@ const PT = 'Greet\tCumprimentar\nHello, world!\tOlá, mundo!\n%d file\t%d arquiv
 const pkg = { name: 'hello', version: '0.2.0', repository: 'github:camaleaun/forge-hello-world' };
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
-describe('given a project without an i18n folder', () => {
+describe('given a project without a languages folder', () => {
   it('when loading, then the result is empty with no warnings and defaults on', () => {
     const r = loadProjectI18n(project(), ir, pkg);
     assert.deepEqual(r, { packs: [], baseUrl: '', options: { download: true, menu: false }, warnings: [], errors: [] });
   });
 });
 
-describe('given i18n/pt-BR.lang and a GitHub repository', () => {
+describe('given languages/pt-BR.lang and a GitHub repository', () => {
   it('when loading, then one pack named <app>-<version>-<tag>.lang carries its header, sha256 and size', () => {
     const r = loadProjectI18n(project({ 'pt-BR.lang': PT }), ir, pkg);
     assert.deepEqual(r.errors, []);
@@ -69,12 +69,12 @@ describe('given i18n/pt-BR.lang and a GitHub repository', () => {
   it('when a translation has a bad placeholder, then it is an error with file:line and no pack', () => {
     const r = loadProjectI18n(project({ 'pt-BR.lang': 'Greet\tOi %s\n' }), ir, pkg);
     assert.equal(r.packs.length, 0);
-    assert.match(r.errors[0], /^i18n\/pt-BR\.lang:1: /);
+    assert.match(r.errors[0], /^languages\/pt-BR\.lang:1: /);
   });
 
   it('when en.lang exists, then it is an error', () => {
     const r = loadProjectI18n(project({ 'en.lang': 'Greet\tHi\n' }), ir, pkg);
-    assert.match(r.errors[0], /i18n\/en\.lang/);
+    assert.match(r.errors[0], /languages\/en\.lang/);
   });
 
   it('when template.lang and other files are present, then they are ignored', () => {
@@ -135,34 +135,34 @@ describe('given hostile i18n folders', () => {
     const outside = project();
     writeFileSync(join(outside, 'secret.lang'), 'Greet\tX\n');
     const dir = project({ 'fr.lang': 'Greet\tSalut\n' });
-    symlinkSync(join(outside, 'secret.lang'), join(dir, 'i18n', 'pt-BR.lang'));
+    symlinkSync(join(outside, 'secret.lang'), join(dir, 'languages', 'pt-BR.lang'));
     const r = loadProjectI18n(dir, ir, pkg);
-    assert.ok(r.errors.some((e) => e.includes('i18n/pt-BR.lang') && e.includes('symbolic link')));
+    assert.ok(r.errors.some((e) => e.includes('languages/pt-BR.lang') && e.includes('symbolic link')));
     assert.deepEqual(r.packs.map((p) => p.tag), ['fr']);
   });
 
-  it('when the i18n folder itself is a symlink, then it is refused', () => {
+  it('when the languages folder itself is a symlink, then it is refused', () => {
     const outside = project({ 'pt-BR.lang': PT });
     const dir = project();
-    symlinkSync(join(outside, 'i18n'), join(dir, 'i18n'));
+    symlinkSync(join(outside, 'languages'), join(dir, 'languages'));
     const r = loadProjectI18n(dir, ir, pkg);
-    assert.ok(r.errors.some((e) => e.includes('i18n') && e.includes('symbolic link')));
+    assert.ok(r.errors.some((e) => e.includes('languages') && e.includes('symbolic link')));
     assert.equal(r.packs.length, 0);
   });
 
   it('when a file is not valid UTF-8, then it is an error naming the file', () => {
     const r = loadProjectI18n(project({ 'pt-BR.lang': new Uint8Array([0x47, 0xff, 0x09, 0x41, 0x0a]) }), ir, pkg);
-    assert.deepEqual(r.errors, ['i18n/pt-BR.lang: invalid UTF-8']);
+    assert.deepEqual(r.errors, ['languages/pt-BR.lang: invalid UTF-8']);
   });
 
   it('when a file is over 1 MB, then it is an error and is not parsed', () => {
     const r = loadProjectI18n(project({ 'pt-BR.lang': Buffer.alloc(1024 * 1024 + 1, 0x61) }), ir, pkg);
-    assert.match(r.errors[0], /i18n\/pt-BR\.lang: file is \d+ bytes, over the 1 MB limit/);
+    assert.match(r.errors[0], /languages\/pt-BR\.lang: file is \d+ bytes, over the 1 MB limit/);
   });
 
   it('when a directory is called x.lang, then it is ignored', () => {
     const dir = project({ 'pt-BR.lang': PT });
-    mkdirSync(join(dir, 'i18n', 'fr.lang'));
+    mkdirSync(join(dir, 'languages', 'fr.lang'));
     const r = loadProjectI18n(dir, ir, pkg);
     assert.deepEqual(r.errors, []);
     assert.deepEqual(r.packs.map((p) => p.tag), ['pt-BR']);
@@ -173,7 +173,7 @@ describe('given hostile i18n folders', () => {
     for (let i = 0; i < 600; i++) files[`x${i}.lang`] = '';
     const r = loadProjectI18n(project(files), ir, pkg);
     assert.equal(r.packs.length, 0);
-    assert.deepEqual(r.errors, ['i18n: too many .lang files (600, the limit is 200)']);
+    assert.deepEqual(r.errors, ['languages: too many .lang files (600, the limit is 200)']);
   });
 });
 
@@ -201,6 +201,6 @@ describe('given translations that cover part of the app', () => {
 
   it('when the folder has errors, then they come back as errors', () => {
     const r = checkProjectI18n(project({ 'pt-BR.lang': 'broken\n' }), ir);
-    assert.match(r.errors[0], /i18n\/pt-BR\.lang:1/);
+    assert.match(r.errors[0], /languages\/pt-BR\.lang:1/);
   });
 });

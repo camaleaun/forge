@@ -12,7 +12,7 @@ export type BuildInput = {
   app: { name: string; version: string };
   App: () => unknown;
   commands?: Record<string, CommandDef>;
-  // Set when the project has an i18n/ folder: literal JSX text and the window title become translatable messages.
+  // Set when the project has an languages/ folder: literal JSX text and the window title become translatable messages.
   translateLiterals?: boolean;
 };
 
@@ -104,7 +104,7 @@ export function buildIr(input: BuildInput): { ir?: Ir; errors: string[] } {
     if (kind === 'select') {
       if (props.language !== true) at(loc, '<select> is only supported with the language attribute in v1');
       else if (vnode.children.length > 0) at(loc, '<select language> cannot have children: the options are the available languages');
-      else if (!input.translateLiterals) at(loc, '<select language> needs an i18n/ folder with at least one language file');
+      else if (!input.translateLiterals) at(loc, '<select language> needs an languages/ folder with at least one language file');
       else node.select = { language: true };
     } else if (kind === 'text' || kind === 'button') {
       const states = vnode.children.filter((child): child is State => child instanceof State);

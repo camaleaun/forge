@@ -23,7 +23,7 @@ export async function build(options: BuildOptions): Promise<number> {
   // --strict-i18n makes every warning an error (releases use it).
   const errors18n = [...i18n.errors];
   if (i18n.packs.length === 0 && hasLanguageSelect(ir.root)) {
-    errors18n.push('<select language> needs at least one language file in i18n/');
+    errors18n.push('<select language> needs at least one language file in languages/');
   }
   const problems = options.strictI18n ? [...errors18n, ...i18n.warnings] : errors18n;
   if (problems.length > 0) {
