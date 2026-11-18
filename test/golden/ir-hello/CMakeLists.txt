@@ -44,6 +44,11 @@ set(CPACK_PACKAGE_NAME "hello")
 set(CPACK_PACKAGE_VERSION "0.1.0")
 set(CPACK_DMG_VOLUME_NAME "hello")
 
+set(FORGE_VARIANT "" CACHE STRING "Language variant: a locale tag appended to the package file names (for example pt-BR)")
+if(FORGE_VARIANT)
+  set(CPACK_PACKAGE_FILE_NAME "hello-0.1.0-Darwin-${FORGE_VARIANT}")
+endif()
+
 option(FORGE_STYLED_DMG "Style the .dmg window with the Finder (needs automation permission)" ON)
 if(FORGE_STYLED_DMG)
   execute_process(

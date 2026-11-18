@@ -12,4 +12,6 @@ export type I18nGenOptions = {
   baseUrl: string;  // where the packs are downloaded from, with a trailing slash
   download: boolean; // false = never download, only use the cache (package.json forge.i18n.download = false)
   menu: boolean;     // add the Language menu (package.json forge.i18n.menu !== false)
+  // `forge build --bundle-locale <tag>`: the pack text is embedded in the binary and its tag is the default language.
+  bundle?: { tag: string; text: string };
 };

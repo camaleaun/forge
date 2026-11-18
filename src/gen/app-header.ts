@@ -2,11 +2,11 @@ import type { Ir } from '../ir/types.ts';
 import { cppString } from './escape.ts';
 import { navigationUsed, stepIds } from './steps.ts';
 
-export function generateAppHeader(ir: Ir, i18n = false, http = false): string {
+export function generateAppHeader(ir: Ir, i18n = false, http = false, bundled = false): string {
   const stateIds = ir.states.map((state) => state.id).join(', ');
   const stateEnum = stateIds ? `{ ${stateIds} }` : '{}';
   const actions = ir.handlers.map((handler) => `void action_${handler.id}(Surface& out);\n`).join('');
-  const include = (i18n ? '\n#include "i18n_loader.hpp"\n\n#define FORGE_I18N 1\n' : '') + (http ? '\n#define FORGE_HTTP 1\n' : '');
+  const include = (i18n ? '\n#include "i18n_loader.hpp"\n\n#define FORGE_I18N 1\n' : '') + (http ? '\n#define FORGE_HTTP 1\n' : '') + (bundled ? '\n#define FORGE_BUNDLED 1\n' : '');
   const ids = stepIds(ir);
   const stepEnum = ids.length > 0 ? `enum class StepId { ${ids.join(', ')} };\n\n` : '';
   const used = navigationUsed(ir);

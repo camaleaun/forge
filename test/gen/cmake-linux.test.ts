@@ -80,7 +80,7 @@ describe('given the CPack setup', () => {
     assert.ok(cmake.includes('set(CPACK_PACKAGE_VERSION "0.2.0~rc.1")'));
   });
   it('when generating, then files are <app>-<version>-linux-<arch> with aarch64 called arm64 and the original version', () => {
-    assert.ok(cmake.includes('set(CPACK_PACKAGE_FILE_NAME "hello-0.2.0-rc.1-linux-${FORGE_ARCH}")'));
+    assert.ok(cmake.includes('set(CPACK_PACKAGE_FILE_NAME "hello-0.2.0-rc.1-linux-${FORGE_ARCH}${FORGE_VARIANT_SUFFIX}")'));
     assert.ok(cmake.includes('set(FORGE_ARCH arm64)'));
     assert.ok(cmake.includes('set(FORGE_ARCH x86_64)'));
     assert.ok(cmake.includes('set(CPACK_DEBIAN_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}.deb")'));

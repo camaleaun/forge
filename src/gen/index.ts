@@ -40,7 +40,9 @@ export function hasPacks(i18n: I18nGenOptions | undefined): i18n is I18nGenOptio
 // The one decision for the HTTP library: language packs that may be downloaded, or an app source that uses a
 // remote feature (none yet: `ir.uses.remote` is the hook a future remote effect sets).
 export function needsHttp(ir: Ir | undefined, i18n: I18nGenOptions | undefined): boolean {
-  return (hasPacks(i18n) && i18n.download) || ir?.uses?.remote === true;
+  // A bundled pack is served from memory: downloads matter only while some pack is not bundled.
+  const downloadable = hasPacks(i18n) && i18n.download && i18n.packs.some((pack) => pack.tag !== i18n.bundle?.tag);
+  return downloadable || ir?.uses?.remote === true;
 }
 export function runtimeFilesFor(i18n?: I18nGenOptions, target = 'macos', ir?: Ir): string[] {
   const linux = target === 'linux';
@@ -70,7 +72,7 @@ export function generateProject(source: Ir, target: string, options: { iconSvg?:
   const http = needsHttp(ir, i18n);
   if (target === 'linux') return generateLinuxProject(ir, i18n, http, options.appId ?? appIdFor(ir.app, 'linux'), options.iconSvg, options.meta ?? {});
   const files: ProjectFiles = new Map([
-    ['forge_app.hpp', generateAppHeader(ir, !!i18n, http)],
+    ['forge_app.hpp', generateAppHeader(ir, !!i18n, http, !!i18n?.bundle)],
     ['actions.cpp', generateActionsCpp(ir, !!i18n)],
     ['cli_router.cpp', generateCliRouter(ir, !!i18n)],
     ['ui_macos.mm', generateMacosUi(ir, i18n)],
@@ -87,7 +89,7 @@ export function generateProject(source: Ir, target: string, options: { iconSvg?:
 
 function generateLinuxProject(ir: Ir, i18n: I18nGenOptions | undefined, http: boolean, appId: string, iconSvg: string | undefined, meta: PackageMeta): ProjectFiles {
   const files: ProjectFiles = new Map([
-    ['forge_app.hpp', generateAppHeader(ir, !!i18n, http)],
+    ['forge_app.hpp', generateAppHeader(ir, !!i18n, http, !!i18n?.bundle)],
     ['actions.cpp', generateActionsCpp(ir, !!i18n)],
     ['cli_router.cpp', generateCliRouter(ir, !!i18n)],
     ['ui_linux.cpp', generateLinuxUi(ir, appId, i18n)],
