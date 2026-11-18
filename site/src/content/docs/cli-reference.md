@@ -7,7 +7,7 @@ order: 4
 # CLI reference
 
 ```text
-forge build [--project <dir>] [--target macos|linux] --out <dir>
+forge build [--project <dir>] [--target macos|linux] --out <dir> [--strict-i18n] [--bundle-locale <tag>]
 forge start [--project <dir>] [--port 5170] [--local] [--token] [--qr]
 forge info  [--project <dir>] --field name|version
 forge manifest --dir <dir> --tag <tag> --repo <owner/repo>
@@ -24,6 +24,8 @@ forge build --out build/src
 cmake -S build/src -B build/out -DCMAKE_BUILD_TYPE=Release
 cmake --build build/out
 ```
+
+`--bundle-locale <tag>` builds a language variant: the pack for that tag (one of the files in `languages/`) is embedded in the binary, and the app opens in it without downloading anything. An unknown tag is an error that lists the available ones. See [Language variants](../packaging-and-releases/#language-variants).
 
 ## forge start
 
@@ -53,7 +55,7 @@ Prints one field of `package.json`: `--field name` or `--field version`. Useful 
 
 ## forge manifest
 
-Writes `latest.json` to stdout for the auto-updater. It reads the `<app>-<version>-<os>-<arch>.zip` files in `--dir` and records the version, and per platform the URL, the SHA-256 and the size. It fails if a zip name does not follow that pattern or its version differs from `--tag`.
+Writes `latest.json` to stdout for the auto-updater. It reads the `<app>-<version>-<os>-<arch>.zip` files in `--dir` and records the version, and per platform the URL, the SHA-256 and the size. It fails if a zip name does not follow that pattern or its version differs from `--tag`. Files of a language variant carry an extra `-<tag>` before the extension (`<app>-<version>-<os>-<arch>-pt-BR.zip`) and are listed under `variants` (see [Language variants](../packaging-and-releases/#language-variants)).
 
 ```sh
 forge manifest --dir dist --tag v0.1.0 --repo owner/repo > latest.json

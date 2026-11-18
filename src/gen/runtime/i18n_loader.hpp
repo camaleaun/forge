@@ -26,6 +26,11 @@ extern const char* const PACK_BASE_URL;
 extern const char* const APP_ID;
 extern const bool DOWNLOAD_ENABLED;
 extern const bool MENU_ENABLED;
+// Defined by messages.cpp only for a language variant (`forge build --bundle-locale`, FORGE_BUNDLED): the pack
+// of BUNDLED_LOCALE is embedded and is the default language; its bytes are checked against that pack's PackDef.
+extern const char* const BUNDLED_LOCALE;
+extern const unsigned BUNDLED_PACK_SIZE;
+extern const char BUNDLED_PACK[];
 
 // What the app shows: an English literal, a literal looked up in the pack (built-in texts), or a
 // message of MESSAGES with its count and arguments.

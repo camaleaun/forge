@@ -115,6 +115,34 @@ A release has, for the tag `v<version>` (the tag must equal `v` plus the version
 
 Tags with a hyphen (such as `v0.1.0-rc.1`) are published as pre-releases. The hello world repository has a complete example in its `.github/workflows/release.yml`.
 
+## Language variants
+
+The default packages are English: they detect the system language and download the matching language pack on first use. A language variant is the same app for one locale `<tag>` (for example `pt-BR`) that works in that language out of the box:
+
+- `forge build --bundle-locale <tag>` embeds the text of `languages/<tag>.lang` in the binary, together with its SHA-256, which the runtime checks before using it. The app opens in `<tag>` even offline on the first launch; nothing is read from or written to the language cache for that tag, and nothing is downloaded. The `<tag>` must be one of the project's languages, otherwise the build fails and lists the available ones.
+- The language dropdown still works. It offers English (and any other pack, which downloads as usual), and the choice is remembered.
+- The variant ignores the system languages. In the app the order is `FORGE_LOCALE_PREFERENCE`, then the stored choice, then the bundled language. On the command line it is `--locale`, then `FORGE_LOCALE`, then the stored choice, then the bundled language: `LC_ALL`, `LC_MESSAGES` and `LANG` are system settings and do not change a variant.
+- When every language pack is bundled, the build has no HTTP files at all (no libsoup on Linux, no `NSURLSession` on macOS), so a one-language variant is smaller than the default i18n build. The HTTP library is compiled only while some pack is not bundled and downloads are enabled.
+- Package file names get `-<tag>` before the extension, set with the CMake variable `FORGE_VARIANT` (empty by default): `<app>-<version>-<platform>-<tag>.<ext>` for the `.deb`, `.rpm`, `.tar.gz` and the inputs of the `.AppImage`, and `<app>-<version>-Darwin-<tag>.dmg` from CPack on macOS. The package, snap and app names and the app id do not change; only file names do.
+
+```sh
+forge build --out build/src --bundle-locale pt-BR
+cmake -S build/src -B build/out -DFORGE_VARIANT=pt-BR
+```
+
+`forge manifest` accepts the optional `-<tag>` suffix (a locale tag such as `pt-BR`, `fr` or `en-GB`) before the extension, including after a prerelease version (`0.4.0-rc.3-darwin-arm64-pt-BR.zip`). Variant files are not listed in `platforms` or `packages`. They go in an optional top-level `variants` map, so a release without variants produces the same `latest.json` as before:
+
+```json
+"variants": {
+  "pt-BR": {
+    "darwin-arm64": { "dmg": { "url": "...", "sha256": "...", "size": 1 }, "zip": { "url": "...", "sha256": "...", "size": 1 } },
+    "linux-x86_64": { "deb": { }, "rpm": { }, "snap": { }, "appimage": { }, "tar.gz": { } }
+  }
+}
+```
+
+The kinds are `dmg`, `deb`, `rpm`, `snap`, `appimage`, `zip` and `tar.gz`.
+
 ## forge-action
 
 [forge-action](https://github.com/camaleaun/forge-action) packages those steps as GitHub Actions for macOS and Linux. A matrix builds every platform in parallel (one artifact per job, named `dist-<platform>`) and one `publish` job merges them, writes `latest.json` and creates the release:

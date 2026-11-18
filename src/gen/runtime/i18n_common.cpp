@@ -110,7 +110,22 @@ std::string pick(const std::vector<std::string>& preferred) {
   return forge_i18n::pick_locale(preferred, available);
 }
 
-// GUI: FORGE_LOCALE_PREFERENCE (tests) > the stored choice > the system languages.
+#ifdef FORGE_BUNDLED
+constexpr bool kBundled = true;
+#else
+constexpr bool kBundled = false;
+#endif
+
+// A language variant opens in its bundled language: the system languages do not apply.
+std::vector<std::string> default_languages() {
+#ifdef FORGE_BUNDLED
+  return {BUNDLED_LOCALE};
+#else
+  return platform::system_languages();
+#endif
+}
+
+// GUI: FORGE_LOCALE_PREFERENCE (tests) > the stored choice > the system languages (a variant: its bundled language).
 std::string pick_gui_tag(bool use_stored) {
   std::vector<std::string> preferred;
   std::string forced = env_string("FORGE_LOCALE_PREFERENCE");
@@ -124,15 +139,16 @@ std::string pick_gui_tag(bool use_stored) {
   } else if (use_stored && !stored_language().empty()) {
     preferred.push_back(stored_language());
   } else {
-    preferred = platform::system_languages();
+    preferred = default_languages();
   }
   return pick(preferred);
 }
 
 // CLI: --locale > FORGE_LOCALE > LC_ALL > LC_MESSAGES > LANG > the stored choice > the system languages.
+// A variant skips LC_ALL, LC_MESSAGES and LANG (system settings): --locale > FORGE_LOCALE > stored > bundled.
 std::string pick_cli_tag(const char* flag) {
-  const std::string candidates[] = {flag ? flag : "", env_string("FORGE_LOCALE"), env_string("LC_ALL"),
-                                    env_string("LC_MESSAGES"), env_string("LANG")};
+  std::vector<std::string> candidates = {flag ? flag : "", env_string("FORGE_LOCALE")};
+  if (!kBundled) for (const char* name : {"LC_ALL", "LC_MESSAGES", "LANG"}) candidates.push_back(env_string(name));
   for (const std::string& candidate : candidates) {
     std::string tag = forge_i18n::normalize_tag(candidate);
     if (!tag.empty()) return pick({tag});
@@ -165,7 +181,11 @@ bool verified(const PackDef& pack, const std::string& bytes, forge_i18n::Pack& o
 }
 
 // The cached pack, checked against the hash that is pinned in the binary; a bad file is deleted.
+// The bundled pack is served from memory (same checks, no cache read or write).
 bool load_cached(const PackDef& pack, forge_i18n::Pack& out) {
+#ifdef FORGE_BUNDLED
+  if (std::string_view(pack.tag) == BUNDLED_LOCALE) return verified(pack, std::string(BUNDLED_PACK, BUNDLED_PACK_SIZE), out);
+#endif
   const std::string path = cache_dir() + "/" + cache_name(pack);
   std::string bytes;
   if (!read_file(path, bytes)) return false;

@@ -10,7 +10,7 @@ import { buildProjectIr } from '../project/build.ts';
 import { unionMessages } from '../project/messages.ts';
 import { readPackageMeta } from '../project/package-meta.ts';
 
-export type BuildOptions = { project: string; target: string; out: string; strictI18n?: boolean };
+export type BuildOptions = { project: string; target: string; out: string; strictI18n?: boolean; bundleLocale?: string };
 
 function hasLanguageSelect(node: Ir['root']): boolean {
   return node.select?.language === true || node.children.some(hasLanguageSelect);
@@ -42,6 +42,13 @@ export async function build(options: BuildOptions): Promise<number> {
   for (const warning of i18n.warnings) console.error(`warning: ${warning}`);
 
   const { baseUrl, options: flags, packs } = i18n;
+  // --bundle-locale <tag>: the language variant embeds that pack (a normalized tag of languages/) and opens in it.
+  const bundled = options.bundleLocale === undefined ? undefined : packs.find((pack) => pack.tag === options.bundleLocale);
+  if (options.bundleLocale !== undefined && !bundled) {
+    const available = packs.map((pack) => pack.tag).sort();
+    console.error(`error: --bundle-locale ${options.bundleLocale}: ${available.length === 0 ? 'the project has no language packs (languages/)' : `the project has no language pack with that tag (available: ${available.join(', ')})`}`);
+    return 1;
+  }
   let appId: string;
   try {
     appId = appIdFor(pkg, options.target);
@@ -54,6 +61,7 @@ export async function build(options: BuildOptions): Promise<number> {
     packs: packs.map(({ tag, file, sha256, size }) => ({ tag, file, sha256, size })),
     baseUrl,
     ...flags,
+    ...(bundled ? { bundle: { tag: bundled.tag, text: bundled.text } } : {}),
   };
   let files: ProjectFiles;
   try {

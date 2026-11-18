@@ -5,7 +5,7 @@ import { start } from './start.ts';
 import { manifest } from './manifest.ts';
 
 const USAGE = `Usage:
-  forge build [--project <dir>] [--target macos|linux] --out <dir> [--strict-i18n]
+  forge build [--project <dir>] [--target macos|linux] --out <dir> [--strict-i18n] [--bundle-locale <tag>]
   forge i18n extract [--project <dir>]
   forge i18n check [--project <dir>] [--strict]
   forge manifest --dir <dir> --tag <tag> --repo <owner/repo>
@@ -27,7 +27,9 @@ const [command, ...args] = process.argv.slice(2);
 if (command === 'build') {
   const out = option(args, '--out');
   if (!out) usage();
-  process.exit(await build({ project: option(args, '--project', '.')!, target: option(args, '--target', 'macos')!, out, strictI18n: args.includes('--strict-i18n') }));
+  const bundleLocale = option(args, '--bundle-locale');
+  if (args.includes('--bundle-locale') && (!bundleLocale || bundleLocale.startsWith('--'))) usage();
+  process.exit(await build({ project: option(args, '--project', '.')!, target: option(args, '--target', 'macos')!, out, strictI18n: args.includes('--strict-i18n'), bundleLocale }));
 }
 
 if (command === 'i18n') {
