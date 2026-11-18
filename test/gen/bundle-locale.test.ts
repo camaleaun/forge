@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { generateAppHeader } from '../../src/gen/app-header.ts';
 import { generateCmake } from '../../src/gen/cmake.ts';
 import { generateCmakeLinux } from '../../src/gen/cmake-linux.ts';
+import { generateSnapcraft } from '../../src/gen/snap.ts';
 import { generateMessagesCpp } from '../../src/gen/messages-cpp.ts';
 import { generateProject, needsHttp, runtimeFilesFor } from '../../src/gen/index.ts';
 import { helloI18nIr, helloI18nOptions } from './helpers.ts';
@@ -59,5 +60,15 @@ describe('given the FORGE_VARIANT CMake variable', () => {
     assert.match(cmake, /set\(FORGE_VARIANT "" CACHE STRING/);
     assert.match(cmake, /if\(FORGE_VARIANT\)\n {2}set\(CPACK_PACKAGE_FILE_NAME "hello-0\.1\.0-Darwin-\$\{FORGE_VARIANT\}"\)\nendif\(\)/);
     assert.match(cmake, /set\(CPACK_PACKAGE_NAME "hello"\)/);
+  });
+});
+
+describe('given the snap of a language variant', () => {
+  it('when every pack is bundled, then the snap needs neither libsoup nor the network plug; with a downloadable pack it needs both', () => {
+    const variant = generateSnapcraft(ir, 'dev.forge.hello', {}, bundled());
+    assert.doesNotMatch(variant, /soup|network/);
+    const packs = [...helloI18nOptions().packs, { tag: 'fr', file: 'hello-0.1.0-fr.lang', sha256: 'ab'.repeat(32), size: 9 }];
+    assert.match(generateSnapcraft(ir, 'dev.forge.hello', {}, bundled({ packs })), /libsoup-3\.0-dev/);
+    assert.match(generateSnapcraft(ir, 'dev.forge.hello', {}, bundled({ packs })), /plugs: \[network\]/);
   });
 });
